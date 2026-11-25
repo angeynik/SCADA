@@ -15,6 +15,7 @@ const CODES = Object.freeze({
   BAD_VALUE: QUALITY.BAD, // драйвер передал значение не того типа или вне диапазона типа
   DEVICE_FAULT: QUALITY.BAD, // контроллер сообщает о неисправности точки (BACnet Reliability, Fault)
   STALE: QUALITY.UNCERTAIN, // значение давно не обновлялось
+  OUT_OF_SERVICE: QUALITY.UNCERTAIN, // точка выведена из работы на контроллере, значение задано вручную (BACnet Out_Of_Service)
 });
 
 const OPCUA_STATUS = Object.freeze({
@@ -25,6 +26,7 @@ const OPCUA_STATUS = Object.freeze({
   BAD_VALUE: 'BadTypeMismatch',
   DEVICE_FAULT: 'BadDeviceFailure',
   STALE: 'UncertainLastUsableValue',
+  OUT_OF_SERVICE: 'UncertainSubstituteValue',
 });
 
 // Проверка пары качество + код. Возвращает текст ошибки или null.

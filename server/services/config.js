@@ -44,6 +44,25 @@ function parseBool(name, raw) {
 
 const int = (min, max) => (n, v) => parseInt10(n, v, { min, max });
 
+const IPV4_RE = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+
+function parseIPv4(name, raw) {
+  const v = String(raw).trim();
+  if (!IPV4_RE.test(v)) throw new Error(`${name}: ожидается адрес IPv4, получено "${raw}"`);
+  return v;
+}
+
+// Адрес IPv4 с необязательным портом: 192.168.1.255 или 192.168.1.255:47808
+function parseHostPort(name, raw) {
+  const v = String(raw).trim();
+  const [host, port, extra] = v.split(':');
+  const portOk = port === undefined || (/^\d{1,5}$/.test(port) && Number(port) >= 1 && Number(port) <= 65535);
+  if (extra !== undefined || !IPV4_RE.test(host) || !portOk) {
+    throw new Error(`${name}: ожидается адрес IPv4[:порт], получено "${raw}"`);
+  }
+  return v;
+}
+
 // Относительный путь считается от каталога сервера
 function parsePath(name, raw) {
   const v = String(raw).trim();
@@ -74,6 +93,19 @@ const SCHEMA = [
   { key: 'modbusConnectTimeoutMs', env: 'MODBUS_CONNECT_TIMEOUT_MS', def: '3000', parse: int(100, 60000) },
   { key: 'modbusFailLimit', env: 'MODBUS_FAIL_LIMIT', def: '3', parse: int(1, 20) },
   { key: 'modbusMaxGap', env: 'MODBUS_MAX_GAP', def: '4', parse: int(0, 100) },
+  // BACnet/IP (docs/bacnet.md)
+  { key: 'bacnetEnabled', env: 'BACNET_ENABLED', def: 'true', parse: parseBool },
+  { key: 'bacnetPort', env: 'BACNET_PORT', def: '47808', parse: int(1, 65535) },
+  { key: 'bacnetInterface', env: 'BACNET_INTERFACE', def: '0.0.0.0', parse: parseIPv4 },
+  { key: 'bacnetBroadcastAddress', env: 'BACNET_BROADCAST_ADDRESS', def: '255.255.255.255', parse: parseHostPort },
+  { key: 'bacnetApduTimeoutMs', env: 'BACNET_APDU_TIMEOUT_MS', def: '3000', parse: int(200, 30000) },
+  { key: 'bacnetPollMs', env: 'BACNET_POLL_MS', def: '2000', parse: int(200, 600000) },
+  { key: 'bacnetFailLimit', env: 'BACNET_FAIL_LIMIT', def: '3', parse: int(1, 20) },
+  { key: 'bacnetCov', env: 'BACNET_COV', def: 'true', parse: parseBool },
+  { key: 'bacnetCovLifetimeS', env: 'BACNET_COV_LIFETIME_S', def: '300', parse: int(60, 28800) },
+  // Приоритет записи по умолчанию; 1–7 (жизнеобеспечение, критичное оборудование) недопустимы
+  { key: 'bacnetWritePriority', env: 'BACNET_WRITE_PRIORITY', def: '8', parse: int(8, 16) },
+  { key: 'bacnetMaxObjects', env: 'BACNET_MAX_OBJECTS', def: '20', parse: int(1, 100) },
 ];
 
 function readEnvFile(file) {

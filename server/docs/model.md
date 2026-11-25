@@ -125,7 +125,9 @@ node tools/checkModel.js          # проверка без запуска се�
 | `objectType` | `analogInput`, `analogOutput`, `analogValue`, `binaryInput`, `binaryOutput`, `binaryValue`, `multiStateInput`, `multiStateOutput`, `multiStateValue`, `characterstringValue` |
 | `instance` | Номер объекта 0–4194302 |
 | `priority` | Приоритет записи 8–16 (по умолчанию — из настроек драйвера, 8). Приоритеты 1–7 запрещены |
-| `scale`, `offset` | Как у Modbus |
+| `scale`, `offset` | Значение = presentValue × `scale` + `offset` (по умолчанию 1 и 0) |
+
+Состояния `multiState*` в BACnet нумеруются с 1. Если в шаблоне состояния с 0, у точки задаётся `"offset": -1`: тогда номер состояния в теге одинаков для N30 и ОВЕН. Подробности о драйвере — [bacnet.md](bacnet.md).
 
 **Совместимость параметра и точки** (проверяет загрузчик):
 - `Boolean` — только `coil`, `discrete`, бит регистра или `binary*`;
@@ -232,3 +234,4 @@ AHU-18;;;;;;;;;;;SupplyTemp;AI:1801;;
 | `BAD_VALUE` | bad | BadTypeMismatch | Значение не того типа |
 | `DEVICE_FAULT` | bad | BadDeviceFailure | Контроллер сообщает о неисправности точки |
 | `STALE` | uncertain | UncertainLastUsableValue | Значение давно не обновлялось |
+| `OUT_OF_SERVICE` | uncertain | UncertainSubstituteValue | Точка выведена из работы на контроллере (BACnet Out_Of_Service): значение задано вручную, а не измерено |

@@ -26,8 +26,8 @@
       "address": "10.10.0.30",
       "points": {
         "Command":            { "objectType": "binaryOutput", "instance": 1701 },
-        "Season":             { "objectType": "multiStateValue", "instance": 1701 },
-        "State":              { "objectType": "multiStateValue", "instance": 1702 },
+        "Season":             { "objectType": "multiStateValue", "instance": 1701, "offset": -1 },
+        "State":              { "objectType": "multiStateValue", "instance": 1702, "offset": -1 },
         "Alarm":              { "objectType": "binaryValue", "instance": 1710 },
         "FreezeAlarm":        { "objectType": "binaryInput", "instance": 1711 },
         "SupplyFilterDirty":  { "objectType": "binaryInput", "instance": 1712 },

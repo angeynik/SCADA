@@ -13,6 +13,7 @@ const { installProcessHandlers } = require('./services/processHandlers');
 const { loadModel, reportModel } = require('./core/modelLoader');
 const { createTagStore } = require('./core/tagStore');
 const { createModbusTcpDriver } = require('./drivers/modbusTcp');
+const { createBacnetIpDriver } = require('./drivers/bacnetIp');
 
 async function main() {
   let loaded;
@@ -63,6 +64,30 @@ async function main() {
         connectTimeoutMs: config.modbusConnectTimeoutMs,
         failLimit: config.modbusFailLimit,
         maxGap: config.modbusMaxGap,
+        reconnectMaxMs: config.reconnectMaxMs,
+      },
+    }));
+  }
+
+  const bacnetTags = tagsOf('bacnet');
+  if (!config.bacnetEnabled) {
+    logger.logInfoMessage(`[Server] - main - BACnet выключен (BACNET_ENABLED=false), тегов без опроса: ${bacnetTags.length}`);
+  } else if (bacnetTags.length) {
+    lifecycle.add('bacnet', createBacnetIpDriver({
+      tags: bacnetTags,
+      tagStore,
+      logger,
+      options: {
+        port: config.bacnetPort,
+        iface: config.bacnetInterface,
+        broadcastAddress: config.bacnetBroadcastAddress,
+        apduTimeoutMs: config.bacnetApduTimeoutMs,
+        pollMs: config.bacnetPollMs,
+        failLimit: config.bacnetFailLimit,
+        cov: config.bacnetCov,
+        covLifetimeS: config.bacnetCovLifetimeS,
+        writePriority: config.bacnetWritePriority,
+        maxObjects: config.bacnetMaxObjects,
         reconnectMaxMs: config.reconnectMaxMs,
       },
     }));

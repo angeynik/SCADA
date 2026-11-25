@@ -48,4 +48,11 @@ function parsePoint(driver, text) {
   throw new Error(`неизвестный драйвер "${driver}"`);
 }
 
-module.exports = { parsePoint };
+// Обратное преобразование для BACnet: { objectType, instance, priority? } → AI:1701[@10]
+function formatBacnetPoint(point) {
+  const code = Object.keys(BACNET_TYPES).find((k) => BACNET_TYPES[k] === point.objectType);
+  if (!code) throw new Error(`неизвестный тип объекта ${point.objectType}`);
+  return `${code}:${point.instance}${point.priority !== undefined ? `@${point.priority}` : ''}`;
+}
+
+module.exports = { parsePoint, formatBacnetPoint };
