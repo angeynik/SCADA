@@ -111,7 +111,7 @@
 | Стек | OPC UA | Modbus | BACnet | Оценка |
 |---|---|---|---|---|
 | **.NET 8 (рекомендуется)** | OPC Foundation UA-.NETStandard, **MIT** [ист. 5] | FluentModbus (MIT), NModbus (MIT) [ист. 8] | System.IO.BACnet, **MIT** [ист. 7] | Эталонный стек OPC UA, зрелый BACnet, Windows и Linux. Rapid SCADA тоже на .NET (Apache-2.0) [ист. 11] — можно брать её наработки |
-| Node.js / TypeScript | node-opcua, MIT [ист. 6] | modbus-serial, ISC [ист. 8] | node-bacstack, MIT, **последнее обновление 09.2023** [ист. 7] | Сильный OPC UA, но BACnet-библиотека заброшена. Подходит, если команда пишет на JS, а BACnet готовы поддерживать сами |
+| Node.js / TypeScript | node-opcua, MIT [ист. 6] | modbus-serial, ISC [ист. 8] | @bacnet-js/client, MIT — поддерживаемый преемник node-bacstack, версия 3.3.2 (05.2026) [ист. 7] | Сильный OPC UA и живая BACnet-библиотека. Подходит, если команда пишет на JS: одна кодовая база с веб-интерфейсом. Выбран для разработки (см. `server/PLAN.md`) |
 | C / C++ | open62541, MPL-2.0 [ист. 6] | libmodbus | bacnet-stack, GPL с исключением для линковки [ист. 7] | Максимальная производительность, но дольше разработка. Оправдан, если ядро пойдёт во встраиваемые шлюзы |
 | Python | asyncua, LGPL-3.0 [ист. 6] | pymodbus, BSD [ист. 8] | BAC0, LGPL-3.0 [ист. 7] | Прототип за 1–2 недели. Для промышленной версии слабее |
 | Java | Eclipse Milo, EPL-2.0 [ист. 6] | j2mod | BACnet4J, **GPL-3.0** [ист. 7] | При продаже продукта BACnet4J требует коммерческой лицензии |
@@ -246,7 +246,7 @@
 4. OPC UA Part 2 — Security Model: https://reference.opcfoundation.org/Core/Part2/
 5. OPC Foundation UA-.NETStandard (лицензия MIT): https://github.com/OPCFoundation/UA-.NETStandard
 6. Стеки OPC UA: node-opcua (MIT) https://github.com/node-opcua/node-opcua ; open62541 (MPL-2.0) https://github.com/open62541/open62541 ; asyncua (LGPL-3.0) https://github.com/FreeOpcUa/opcua-asyncio ; Eclipse Milo (EPL-2.0) https://github.com/eclipse-milo/milo
-7. Стеки BACnet: System.IO.BACnet (MIT) https://github.com/ela-compil/BACnet ; bacnet-stack (GPL с исключением) https://github.com/bacnet-stack/bacnet-stack ; BACnet4J (GPL-3.0) https://github.com/RadixIoT/BACnet4J ; node-bacstack (MIT) https://github.com/fh1ch/node-bacstack ; BAC0 (LGPL-3.0) https://github.com/ChristianTremblay/BAC0
+7. Стеки BACnet: System.IO.BACnet (MIT) https://github.com/ela-compil/BACnet ; bacnet-stack (GPL с исключением) https://github.com/bacnet-stack/bacnet-stack ; BACnet4J (GPL-3.0) https://github.com/RadixIoT/BACnet4J ; @bacnet-js/client (MIT) https://github.com/bacnet-js/client ; node-bacstack (MIT, не обновляется с 2023) https://github.com/fh1ch/node-bacstack ; BAC0 (LGPL-3.0) https://github.com/ChristianTremblay/BAC0
 8. Библиотеки Modbus: FluentModbus (MIT) https://github.com/Apollo3zehn/FluentModbus ; NModbus (MIT) https://github.com/NModbus/NModbus ; modbus-serial (ISC) https://github.com/yaacov/node-modbus-serial ; pymodbus (BSD) https://github.com/pymodbus-dev/pymodbus
 9. Файлы этого репозитория: обзор SCADA (20.11.2026) и оценка вариантов А и Б (22.11.2026).
 10. FUXA (MIT): https://github.com/frangoteam/FUXA

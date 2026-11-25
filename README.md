@@ -7,3 +7,8 @@
 | 20.11.2026 | [2026-11-20-scada-n2-modbus-bacnet.md](2026-11-20-scada-n2-modbus-bacnet.md) | Обзор SCADA с поддержкой N2, Modbus TCP, BACnet; наличие в РФ, РБ, Казахстане, Азербайджане |
 | 22.11.2026 | [2026-11-22-bms-cost-scada-vs-own.md](2026-11-22-bms-cost-scada-vs-own.md) | Стоимость: А — готовая SCADA, Б — покупной OPC + своя разработка (5 регионов, 10 лет) |
 | 25.11.2026 | [2026-11-25-bms-own-opcua-server.md](2026-11-25-bms-own-opcua-server.md) | Вариант В: свой сервер сбора данных на OPC UA — архитектура, стек, стоимость |
+
+## Разработка (вариант «всё своё», Node.js)
+
+- [server/](server/) — сервер: сбор данных (Modbus TCP, BACnet/IP), OPC UA, архив, тревоги, WebSocket для клиента. Правила — [server/rules.md](server/rules.md), план — [server/PLAN.md](server/PLAN.md).
+- [client/](client/) — интерфейс диспетчера.
