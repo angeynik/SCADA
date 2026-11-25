@@ -10,6 +10,8 @@ const { loadConfig } = require('./services/config');
 const version = require('./services/version');
 const { createLifecycle } = require('./services/lifecycle');
 const { installProcessHandlers } = require('./services/processHandlers');
+const { loadModel, reportModel } = require('./core/modelLoader');
+const { createTagStore } = require('./core/tagStore');
 
 async function main() {
   let loaded;
@@ -28,6 +30,19 @@ async function main() {
   if (overrides.length) {
     logger.logInfoMessage(`[Server] - main - окружение перекрывает conf.env: ${overrides.join(', ')}`);
   }
+
+  // Модель объекта: без site.json сервер не запускается, ошибочные установки отключаются
+  let model;
+  try {
+    model = loadModel({ dir: config.configDir });
+  } catch (err) {
+    logger.logErrorMessage('[Server] - main - модель не загружена:', err);
+    process.exitCode = 1;
+    return;
+  }
+  reportModel(model, logger);
+  // Текущие значения тегов. Драйверы, OPC UA и WebSocket подключаются к нему на этапах 2–8
+  const tagStore = createTagStore({ tags: model.tags, logger });
 
   const lifecycle = createLifecycle({ logger, timeoutMs: config.shutdownTimeoutMs });
   installProcessHandlers({ lifecycle, logger });

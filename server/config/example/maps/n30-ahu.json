@@ -1,0 +1,10 @@
+{
+  "id": "n30-ahu",
+  "title": "Metasys N30, общие точки ПВУ",
+  "description": "Пример. На N30 номера объектов обычно свои у каждой установки, поэтому в карте только общие точки, а остальные задаются в экземпляре (source.points).",
+  "driver": "bacnet",
+  "template": "AhuType",
+  "points": {
+    "OutdoorTemp": { "objectType": "analogInput", "instance": 1 }
+  }
+}

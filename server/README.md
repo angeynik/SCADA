@@ -12,6 +12,8 @@
 ```bash
 npm install
 cp conf.env.example conf.env   # и поправить под объект
+mkdir -p data && cp -r config/example data/config   # конфигурация объекта, формат — docs/model.md
+node tools/checkModel.js       # проверка конфигурации без запуска сервера
 npm start                      # остановка — Ctrl+C или SIGTERM
 npm run dev                    # перезапуск при изменении файлов
 ```

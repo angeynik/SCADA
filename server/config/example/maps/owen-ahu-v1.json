@@ -1,0 +1,30 @@
+{
+  "id": "owen-ahu-v1",
+  "title": "ОВЕН ПЛК, программа ПВУ версии 1",
+  "description": "Пример карты регистров. Адреса, масштабы и порядок слов (byteOrder) сверить с проектом программы контроллера.",
+  "driver": "modbus",
+  "template": "AhuType",
+  "byteOrder": "CDAB",
+  "points": {
+    "Command":            { "area": "coil", "address": 0 },
+    "Season":             { "area": "holding", "address": 10 },
+    "State":              { "area": "holding", "address": 11 },
+    "Alarm":              { "area": "holding", "address": 12, "bit": 0 },
+    "FreezeAlarm":        { "area": "holding", "address": 12, "bit": 1 },
+    "SupplyFilterDirty":  { "area": "holding", "address": 12, "bit": 2 },
+    "ExhaustFilterDirty": { "area": "holding", "address": 12, "bit": 3 },
+    "SupplyFanRunning":   { "area": "holding", "address": 12, "bit": 4 },
+    "ExhaustFanRunning":  { "area": "holding", "address": 12, "bit": 5 },
+    "SupplyTemp":         { "area": "holding", "address": 100, "type": "float32" },
+    "SupplyTempSp":       { "area": "holding", "address": 102, "type": "float32" },
+    "ExhaustTemp":        { "area": "holding", "address": 104, "type": "float32" },
+    "OutdoorTemp":        { "area": "holding", "address": 106, "type": "float32" },
+    "ReturnWaterTemp":    { "area": "holding", "address": 108, "type": "float32" },
+    "HeaterValve":        { "area": "holding", "address": 120, "type": "int16", "scale": 0.1 },
+    "CoolerValve":        { "area": "holding", "address": 121, "type": "int16", "scale": 0.1 },
+    "SupplyFanSpeed":     { "area": "holding", "address": 122, "type": "int16", "scale": 0.1 },
+    "ExhaustFanSpeed":    { "area": "holding", "address": 123, "type": "int16", "scale": 0.1 },
+    "Humidity":           { "area": "holding", "address": 124, "type": "int16", "scale": 0.1 },
+    "RunHours":           { "area": "holding", "address": 130, "type": "uint32" }
+  }
+}

@@ -48,6 +48,8 @@ function parsePath(name, raw) {
 const SCHEMA = [
   { key: 'logLevel', env: 'LOG_LEVEL', def: 'info', parse: (n, v) => parseEnum(n, v, LEVEL_NAMES) },
   { key: 'dataDir', env: 'DATA_DIR', def: 'data', parse: parsePath },
+  // Конфигурация объекта (шаблоны, карты, установки). Образец — config/example
+  { key: 'configDir', env: 'CONFIG_DIR', def: 'data/config', parse: parsePath },
   {
     key: 'shutdownTimeoutMs',
     env: 'SHUTDOWN_TIMEOUT_MS',

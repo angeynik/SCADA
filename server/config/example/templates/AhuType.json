@@ -1,0 +1,82 @@
+{
+  "id": "AhuType",
+  "title": "Приточно-вытяжная установка",
+  "description": "Типовая ПВУ: водяной калорифер, охладитель, приточный и вытяжной вентиляторы с ЧРП. Состав сигналов — пример, уточняется по объекту.",
+  "params": {
+    "Command": { "title": "Команда пуск/стоп", "dataType": "Boolean", "access": "rw", "writeLevel": 2 },
+    "Season": {
+      "title": "Режим сезона",
+      "dataType": "UInt16",
+      "access": "rw",
+      "writeLevel": 3,
+      "states": { "0": "Авто", "1": "Зима", "2": "Лето" }
+    },
+    "State": {
+      "title": "Состояние",
+      "dataType": "UInt16",
+      "states": { "0": "Стоп", "1": "Прогрев", "2": "Пуск", "3": "Работа", "4": "Авария", "5": "Защита от замораживания" }
+    },
+    "Alarm": {
+      "title": "Общая авария",
+      "dataType": "Boolean",
+      "alarms": [{ "type": "state", "value": true, "priority": 700, "message": "Авария установки" }]
+    },
+    "FreezeAlarm": {
+      "title": "Угроза замораживания",
+      "dataType": "Boolean",
+      "alarms": [{ "type": "state", "value": true, "priority": 900, "message": "Угроза замораживания калорифера" }]
+    },
+    "SupplyFilterDirty": {
+      "title": "Засорён фильтр притока",
+      "dataType": "Boolean",
+      "alarms": [{ "type": "state", "value": true, "priority": 300, "delayMs": 60000, "message": "Засорён фильтр притока" }]
+    },
+    "ExhaustFilterDirty": {
+      "title": "Засорён фильтр вытяжки",
+      "dataType": "Boolean",
+      "alarms": [{ "type": "state", "value": true, "priority": 300, "delayMs": 60000, "message": "Засорён фильтр вытяжки" }]
+    },
+    "SupplyTemp": {
+      "title": "Температура приточного воздуха",
+      "dataType": "Float",
+      "unit": "°C",
+      "deadband": 0.1,
+      "alarms": [
+        { "type": "lo", "limit": 12, "deadband": 1, "delayMs": 60000, "priority": 600, "message": "Низкая температура притока" },
+        { "type": "hi", "limit": 35, "deadband": 1, "delayMs": 60000, "priority": 400, "message": "Высокая температура притока" },
+        { "type": "bad", "priority": 500, "delayMs": 30000, "message": "Нет данных температуры притока" }
+      ]
+    },
+    "SupplyTempSp": {
+      "title": "Уставка температуры притока",
+      "dataType": "Float",
+      "unit": "°C",
+      "access": "rw",
+      "writeLevel": 3,
+      "min": 10,
+      "max": 30
+    },
+    "ExhaustTemp": { "title": "Температура вытяжного воздуха", "dataType": "Float", "unit": "°C", "deadband": 0.1 },
+    "OutdoorTemp": { "title": "Температура наружного воздуха", "dataType": "Float", "unit": "°C", "deadband": 0.2 },
+    "ReturnWaterTemp": {
+      "title": "Температура обратной воды калорифера",
+      "dataType": "Float",
+      "unit": "°C",
+      "deadband": 0.2,
+      "alarms": [{ "type": "lo", "limit": 15, "deadband": 2, "delayMs": 30000, "priority": 800, "message": "Низкая температура обратной воды" }]
+    },
+    "HeaterValve": { "title": "Клапан калорифера", "dataType": "Float", "unit": "%", "deadband": 1 },
+    "CoolerValve": { "title": "Клапан охладителя", "dataType": "Float", "unit": "%", "deadband": 1 },
+    "SupplyFanSpeed": { "title": "Скорость приточного вентилятора", "dataType": "Float", "unit": "%", "deadband": 1 },
+    "ExhaustFanSpeed": { "title": "Скорость вытяжного вентилятора", "dataType": "Float", "unit": "%", "deadband": 1 },
+    "SupplyFanRunning": { "title": "Приточный вентилятор в работе", "dataType": "Boolean" },
+    "ExhaustFanRunning": { "title": "Вытяжной вентилятор в работе", "dataType": "Boolean" },
+    "Humidity": { "title": "Влажность приточного воздуха", "dataType": "Float", "unit": "%", "deadband": 1 },
+    "RunHours": {
+      "title": "Наработка",
+      "dataType": "UInt32",
+      "unit": "ч",
+      "archive": { "mode": "interval", "periodMs": 3600000 }
+    }
+  }
+}

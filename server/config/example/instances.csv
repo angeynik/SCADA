@@ -1,0 +1,22 @@
+instance;title;template;driver;map;host;port;unitId;device;address;exclude;param;point;scale;offset
+AHU-03;П3/В3 Конференц-зал, 2 этаж;AhuType;modbus;owen-ahu-v1;10.10.1.13;;1;;;Humidity;;;;
+AHU-03;;;;;;;;;;;HeaterValve;HR:140:I16;0,1;
+AHU-18;П18/В18 Цех (на N30);AhuType;bacnet;n30-ahu;;;;30001;10.10.0.30;Humidity;;;;
+AHU-18;;;;;;;;;;;Command;BO:1801;;
+AHU-18;;;;;;;;;;;Season;MV:1801;;
+AHU-18;;;;;;;;;;;State;MV:1802;;
+AHU-18;;;;;;;;;;;Alarm;BV:1810;;
+AHU-18;;;;;;;;;;;FreezeAlarm;BI:1811;;
+AHU-18;;;;;;;;;;;SupplyFilterDirty;BI:1812;;
+AHU-18;;;;;;;;;;;ExhaustFilterDirty;BI:1813;;
+AHU-18;;;;;;;;;;;SupplyFanRunning;BI:1814;;
+AHU-18;;;;;;;;;;;ExhaustFanRunning;BI:1815;;
+AHU-18;;;;;;;;;;;SupplyTemp;AI:1801;;
+AHU-18;;;;;;;;;;;SupplyTempSp;AV:1801@10;;
+AHU-18;;;;;;;;;;;ExhaustTemp;AI:1802;;
+AHU-18;;;;;;;;;;;ReturnWaterTemp;AI:1803;;
+AHU-18;;;;;;;;;;;HeaterValve;AO:1801;;
+AHU-18;;;;;;;;;;;CoolerValve;AO:1802;;
+AHU-18;;;;;;;;;;;SupplyFanSpeed;AO:1803;;
+AHU-18;;;;;;;;;;;ExhaustFanSpeed;AO:1804;;
+AHU-18;;;;;;;;;;;RunHours;AV:1810;;

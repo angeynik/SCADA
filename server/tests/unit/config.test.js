@@ -25,6 +25,7 @@ describe('config.loadConfig', () => {
     expect(config).toEqual({
       logLevel: 'info',
       dataDir: path.join(ROOT, 'data'),
+      configDir: path.join(ROOT, 'data/config'),
       shutdownTimeoutMs: 10000,
     });
     expect(Object.isFrozen(config)).toBe(true);

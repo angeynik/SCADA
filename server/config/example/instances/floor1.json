@@ -1,0 +1,50 @@
+[
+  {
+    "id": "AHU-01",
+    "title": "П1/В1 Офис, 1 этаж",
+    "template": "AhuType",
+    "source": { "driver": "modbus", "map": "owen-ahu-v1", "host": "10.10.1.11", "unitId": 1 }
+  },
+  {
+    "id": "AHU-02",
+    "title": "П2/В2 Столовая, 1 этаж",
+    "template": "AhuType",
+    "source": { "driver": "modbus", "map": "owen-ahu-v1", "host": "10.10.1.12", "unitId": 1 },
+    "exclude": ["Humidity"],
+    "params": {
+      "SupplyTempSp": { "min": 16, "max": 24 }
+    }
+  },
+  {
+    "id": "AHU-17",
+    "title": "П17/В17 Склад (ещё на N30)",
+    "template": "AhuType",
+    "source": {
+      "driver": "bacnet",
+      "map": "n30-ahu",
+      "device": 30001,
+      "address": "10.10.0.30",
+      "points": {
+        "Command":            { "objectType": "binaryOutput", "instance": 1701 },
+        "Season":             { "objectType": "multiStateValue", "instance": 1701 },
+        "State":              { "objectType": "multiStateValue", "instance": 1702 },
+        "Alarm":              { "objectType": "binaryValue", "instance": 1710 },
+        "FreezeAlarm":        { "objectType": "binaryInput", "instance": 1711 },
+        "SupplyFilterDirty":  { "objectType": "binaryInput", "instance": 1712 },
+        "ExhaustFilterDirty": { "objectType": "binaryInput", "instance": 1713 },
+        "SupplyFanRunning":   { "objectType": "binaryInput", "instance": 1714 },
+        "ExhaustFanRunning":  { "objectType": "binaryInput", "instance": 1715 },
+        "SupplyTemp":         { "objectType": "analogInput", "instance": 1701 },
+        "SupplyTempSp":       { "objectType": "analogValue", "instance": 1701 },
+        "ExhaustTemp":        { "objectType": "analogInput", "instance": 1702 },
+        "ReturnWaterTemp":    { "objectType": "analogInput", "instance": 1703 },
+        "HeaterValve":        { "objectType": "analogOutput", "instance": 1701 },
+        "CoolerValve":        { "objectType": "analogOutput", "instance": 1702 },
+        "SupplyFanSpeed":     { "objectType": "analogOutput", "instance": 1703 },
+        "ExhaustFanSpeed":    { "objectType": "analogOutput", "instance": 1704 },
+        "RunHours":           { "objectType": "analogValue", "instance": 1710 }
+      }
+    },
+    "exclude": ["Humidity"]
+  }
+]
