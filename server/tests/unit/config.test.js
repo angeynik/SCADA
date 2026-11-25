@@ -45,6 +45,14 @@ describe('config.loadConfig', () => {
       bacnetCovLifetimeS: 300,
       bacnetWritePriority: 8,
       bacnetMaxObjects: 20,
+      opcuaEnabled: true,
+      opcuaPort: 4840,
+      opcuaInterface: '0.0.0.0',
+      opcuaHostname: '',
+      opcuaNamespaceUri: 'urn:scada-bms:model',
+      opcuaAllowInsecure: false,
+      opcuaMaxSessions: 20,
+      pkiDir: path.join(ROOT, 'pki'),
     });
     expect(Object.isFrozen(config)).toBe(true);
   });
@@ -109,6 +117,17 @@ describe('config.loadConfig', () => {
   test('приоритет записи BACnet 1–7 недопустим', () => {
     expect(() => loadConfig({ env: { CONF_ENV_FILE: file, BACNET_WRITE_PRIORITY: '7' } }))
       .toThrow(/BACNET_WRITE_PRIORITY: допустимо от 8 до 16/);
+  });
+
+  test('OPC UA: имя узла и URI пространства имён', () => {
+    const load = (env) => loadConfig({ env: { CONF_ENV_FILE: file, ...env } }).config;
+    expect(load({ OPCUA_HOSTNAME: 'scada-1.bms.local' }).opcuaHostname).toBe('scada-1.bms.local');
+    expect(load({ OPCUA_HOSTNAME: '10.20.0.5' }).opcuaHostname).toBe('10.20.0.5');
+    expect(() => load({ OPCUA_HOSTNAME: 'scada 1' })).toThrow(/OPCUA_HOSTNAME: ожидается имя узла/);
+    expect(() => load({ OPCUA_HOSTNAME: '-bad.local' })).toThrow(/OPCUA_HOSTNAME/);
+    expect(load({ OPCUA_NAMESPACE_URI: 'http://example.com/bms/' }).opcuaNamespaceUri).toBe('http://example.com/bms/');
+    expect(() => load({ OPCUA_NAMESPACE_URI: 'scada model' })).toThrow(/OPCUA_NAMESPACE_URI: ожидается URI/);
+    expect(load({ PKI_DIR: '/etc/scada/pki' }).pkiDir).toBe('/etc/scada/pki');
   });
 
   test('без CONF_ENV_FILE читается conf.env рядом с server.js', () => {

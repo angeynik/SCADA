@@ -63,6 +63,23 @@ function parseHostPort(name, raw) {
   return v;
 }
 
+// Имя узла DNS или IPv4 (для адреса OPC UA в сертификате и описании точек входа).
+// Пустое значение — имя машины
+const HOSTNAME_RE = /^(?=.{1,253}$)[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$/;
+
+function parseHostname(name, raw) {
+  const v = String(raw).trim();
+  if (v && !HOSTNAME_RE.test(v)) throw new Error(`${name}: ожидается имя узла или адрес IPv4, получено "${raw}"`);
+  return v;
+}
+
+// URI пространства имён: схема и непустая часть без пробелов (urn:..., http://...)
+function parseUri(name, raw) {
+  const v = String(raw).trim();
+  if (!/^[A-Za-z][A-Za-z0-9+.-]*:\S+$/.test(v)) throw new Error(`${name}: ожидается URI (например urn:scada-bms:model), получено "${raw}"`);
+  return v;
+}
+
 // Относительный путь считается от каталога сервера
 function parsePath(name, raw) {
   const v = String(raw).trim();
@@ -106,6 +123,18 @@ const SCHEMA = [
   // Приоритет записи по умолчанию; 1–7 (жизнеобеспечение, критичное оборудование) недопустимы
   { key: 'bacnetWritePriority', env: 'BACNET_WRITE_PRIORITY', def: '8', parse: int(8, 16) },
   { key: 'bacnetMaxObjects', env: 'BACNET_MAX_OBJECTS', def: '20', parse: int(1, 100) },
+  // OPC UA (docs/opcua.md)
+  { key: 'opcuaEnabled', env: 'OPCUA_ENABLED', def: 'true', parse: parseBool },
+  { key: 'opcuaPort', env: 'OPCUA_PORT', def: '4840', parse: int(1, 65535) },
+  // Интерфейс сети клиентов; 0.0.0.0 — все интерфейсы
+  { key: 'opcuaInterface', env: 'OPCUA_INTERFACE', def: '0.0.0.0', parse: parseIPv4 },
+  { key: 'opcuaHostname', env: 'OPCUA_HOSTNAME', def: '', parse: parseHostname },
+  { key: 'opcuaNamespaceUri', env: 'OPCUA_NAMESPACE_URI', def: 'urn:scada-bms:model', parse: parseUri },
+  // Режим None и анонимный вход — только для разработки
+  { key: 'opcuaAllowInsecure', env: 'OPCUA_ALLOW_INSECURE', def: 'false', parse: parseBool },
+  { key: 'opcuaMaxSessions', env: 'OPCUA_MAX_SESSIONS', def: '20', parse: int(1, 500) },
+  // Сертификаты OPC UA: свой, доверенные и отклонённые клиенты
+  { key: 'pkiDir', env: 'PKI_DIR', def: 'pki', parse: parsePath },
 ];
 
 function readEnvFile(file) {

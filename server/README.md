@@ -7,7 +7,7 @@
 
 ## Запуск
 
-Нужен Node.js 22 или новее.
+Нужен Node.js 24.9 или новее (LTS 24).
 
 ```bash
 npm install
@@ -25,12 +25,23 @@ node tools/modbusEmulator.js --map owen-ahu-v1 --count 80 --write-instances data
 node tools/modbusDiag.js --instance EMU-01     # проверка одной установки
 ```
 
-Подробно — [docs/modbus-tcp.md](docs/modbus-tcp.md).
+Подробно — [docs/modbus-tcp.md](docs/modbus-tcp.md), BACnet — [docs/bacnet.md](docs/bacnet.md).
+
+## OPC UA
+
+Сервер слушает `opc.tcp://<имя машины>:4840`. Новый клиент сначала отклоняется, доверие — вручную:
+
+```bash
+node tools/opcuaPki.js list            # отклонённые клиенты с отпечатками
+node tools/opcuaPki.js trust <отпечаток>
+```
+
+До этапа 5 (пользователи) войти можно только в режиме разработки `OPCUA_ALLOW_INSECURE=true`. Подробно — [docs/opcua.md](docs/opcua.md).
 
 ## Тесты
 
 ```bash
-npm test                  # весь набор
+npm test                  # весь набор (не npx jest: нужен флаг для node-opcua)
 npm run test:unit         # только юнит-тесты
 npm run test:integration  # только интеграционные
 ```

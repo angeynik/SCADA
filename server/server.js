@@ -43,7 +43,7 @@ async function main() {
     return;
   }
   reportModel(model, logger);
-  // Текущие значения тегов. OPC UA и WebSocket подключаются к нему на этапах 4–8
+  // Текущие значения тегов: драйверы пишут, OPC UA (и позже WebSocket) читают
   const tagStore = createTagStore({ tags: model.tags, logger });
 
   const lifecycle = createLifecycle({ logger, timeoutMs: config.shutdownTimeoutMs });
@@ -89,6 +89,29 @@ async function main() {
         writePriority: config.bacnetWritePriority,
         maxObjects: config.bacnetMaxObjects,
         reconnectMaxMs: config.reconnectMaxMs,
+      },
+    }));
+  }
+
+  // OPC UA — после драйверов: при остановке он закрывается первым
+  if (!config.opcuaEnabled) {
+    logger.logInfoMessage('[Server] - main - OPC UA выключен (OPCUA_ENABLED=false)');
+  } else {
+    // node-opcua загружается ~1,5 с, поэтому только когда OPC UA включён
+    const { createOpcUaServer } = require('./opcua');
+    lifecycle.add('opcua', createOpcUaServer({
+      model,
+      tagStore,
+      logger,
+      version,
+      options: {
+        port: config.opcuaPort,
+        host: config.opcuaInterface,
+        hostname: config.opcuaHostname,
+        namespaceUri: config.opcuaNamespaceUri,
+        allowInsecure: config.opcuaAllowInsecure,
+        maxSessions: config.opcuaMaxSessions,
+        pkiDir: config.pkiDir,
       },
     }));
   }
