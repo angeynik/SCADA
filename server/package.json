@@ -1,0 +1,25 @@
+{
+  "name": "scada-bms-server",
+  "version": "1.0.0",
+  "appVersion": "0.0.0.1",
+  "private": true,
+  "description": "Сервер верхнего уровня BMS: Modbus TCP, BACnet/IP, OPC UA, архив, тревоги, WebSocket",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "jest",
+    "test:unit": "jest tests/unit/",
+    "test:integration": "jest tests/integration/"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "dotenv": "^18.0.10"
+  },
+  "devDependencies": {
+    "jest": "^30.5.2"
+  }
+}

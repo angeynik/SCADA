@@ -1,0 +1,70 @@
+// services/logger.js
+// Единый логгер сервера. Уровень задаёт LOG_LEVEL:
+//   error — только ошибки;
+//   info  — ошибки и информационные сообщения (по умолчанию);
+//   dev   — всё, включая отладочные сообщения;
+//   none  — ничего (для тестов, задаётся в tests/setup.js).
+// Каждый уровень включает все более важные, поэтому вне тестов ошибки пишутся всегда.
+// Формат сообщения: `[Модуль] - функция - сообщение`. Функции принимают несколько
+// аргументов: строки выводятся как есть, Error — своим message, остальное — через
+// util.inspect в одну строку.
+'use strict';
+
+const util = require('util');
+
+const LEVELS = {
+  none: { error: false, info: false, dev: false },
+  error: { error: true, info: false, dev: false },
+  info: { error: true, info: true, dev: false },
+  dev: { error: true, info: true, dev: true },
+};
+
+let flags = LEVELS.info;
+
+// Уровень берётся из аргумента, иначе из окружения. Неизвестное значение работает как 'info'.
+// До загрузки конфигурации логгер уже работает по LOG_LEVEL окружения, после —
+// server.js вызывает initLogging(config.logLevel).
+function initLogging(level = process.env.LOG_LEVEL) {
+  const name = String(level || 'info').trim().toLowerCase();
+  flags = LEVELS[name] || LEVELS.info;
+}
+
+function format(args) {
+  return args
+    .map((a) => {
+      if (typeof a === 'string') return a;
+      if (a instanceof Error) return a.message;
+      return util.inspect(a, { depth: 4, breakLength: Infinity });
+    })
+    .join(' ');
+}
+
+function logInfoMessage(...args) {
+  if (flags.info) process.stdout.write(`${format(args)}\n`);
+}
+
+function logDevMessage(...args) {
+  if (flags.dev) process.stdout.write(`[DEV] ${format(args)}\n`);
+}
+
+function logErrorMessage(...args) {
+  if (flags.error) process.stderr.write(`[ERROR] ${format(args)}\n`);
+}
+
+// Маскирует значения секретных полей в сыром JSON (входящие сообщения клиентов)
+const SECRET_RE = /("(?:password|oldPassword|newPassword|token)"\s*:\s*")(?:[^"\\]|\\.)*(")/g;
+
+function redactSecrets(text) {
+  return String(text).replace(SECRET_RE, '$1***$2');
+}
+
+initLogging();
+
+module.exports = {
+  LEVEL_NAMES: Object.keys(LEVELS),
+  initLogging,
+  logInfoMessage,
+  logDevMessage,
+  logErrorMessage,
+  redactSecrets,
+};

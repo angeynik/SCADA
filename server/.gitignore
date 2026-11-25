@@ -1,0 +1,15 @@
+# Зависимости
+node_modules/
+
+# Настройки и секреты объекта
+conf.env
+
+# Данные, сертификаты OPC UA, логи — локальные
+data/
+pki/
+logs/
+*.log
+
+# Артефакты
+coverage/
+.DS_Store

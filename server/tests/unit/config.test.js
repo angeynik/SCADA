@@ -1,0 +1,80 @@
+'use strict';
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { loadConfig, ROOT } = require('../../services/config');
+
+describe('config.loadConfig', () => {
+  let dir;
+  let file;
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scada-config-'));
+    file = path.join(dir, 'conf.env');
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('без файла и окружения — значения по умолчанию', () => {
+    const { config, overrides, envFile } = loadConfig({ env: { CONF_ENV_FILE: file } });
+    expect(envFile).toBeNull();
+    expect(overrides).toEqual([]);
+    expect(config).toEqual({
+      logLevel: 'info',
+      dataDir: path.join(ROOT, 'data'),
+      shutdownTimeoutMs: 10000,
+    });
+    expect(Object.isFrozen(config)).toBe(true);
+  });
+
+  test('значения из файла', () => {
+    fs.writeFileSync(file, 'LOG_LEVEL=dev\nDATA_DIR=/var/lib/scada\nSHUTDOWN_TIMEOUT_MS=5000\n');
+    const { config, envFile } = loadConfig({ env: { CONF_ENV_FILE: file } });
+    expect(envFile).toBe(file);
+    expect(config.logLevel).toBe('dev');
+    expect(config.dataDir).toBe('/var/lib/scada');
+    expect(config.shutdownTimeoutMs).toBe(5000);
+  });
+
+  test('окружение перекрывает файл, имя попадает в overrides', () => {
+    fs.writeFileSync(file, 'LOG_LEVEL=dev\nSHUTDOWN_TIMEOUT_MS=5000\n');
+    const { config, overrides } = loadConfig({
+      env: { CONF_ENV_FILE: file, LOG_LEVEL: 'error', SHUTDOWN_TIMEOUT_MS: '5000' },
+    });
+    expect(config.logLevel).toBe('error');
+    // Одинаковое значение — не перекрытие
+    expect(overrides).toEqual(['LOG_LEVEL']);
+  });
+
+  test('пустое значение работает как отсутствующее', () => {
+    fs.writeFileSync(file, 'LOG_LEVEL=\n');
+    const { config } = loadConfig({ env: { CONF_ENV_FILE: file, SHUTDOWN_TIMEOUT_MS: '' } });
+    expect(config.logLevel).toBe('info');
+    expect(config.shutdownTimeoutMs).toBe(10000);
+  });
+
+  test('относительный DATA_DIR считается от каталога сервера', () => {
+    const { config } = loadConfig({ env: { CONF_ENV_FILE: file, DATA_DIR: 'var/data' } });
+    expect(config.dataDir).toBe(path.join(ROOT, 'var/data'));
+  });
+
+  test('недопустимые значения — одна ошибка со всеми параметрами', () => {
+    expect(() => loadConfig({
+      env: { CONF_ENV_FILE: file, LOG_LEVEL: 'verbose', SHUTDOWN_TIMEOUT_MS: '10s' },
+    })).toThrow(/LOG_LEVEL.*verbose.*SHUTDOWN_TIMEOUT_MS.*10s/);
+  });
+
+  test('число вне диапазона — ошибка', () => {
+    expect(() => loadConfig({ env: { CONF_ENV_FILE: file, SHUTDOWN_TIMEOUT_MS: '500' } }))
+      .toThrow(/SHUTDOWN_TIMEOUT_MS: допустимо от 1000 до 120000/);
+  });
+
+  test('без CONF_ENV_FILE читается conf.env рядом с server.js', () => {
+    const { envFile } = loadConfig({ env: {} });
+    const expected = fs.existsSync(path.join(ROOT, 'conf.env')) ? path.join(ROOT, 'conf.env') : null;
+    expect(envFile).toBe(expected);
+  });
+});

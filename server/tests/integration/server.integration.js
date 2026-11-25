@@ -1,0 +1,74 @@
+// Запуск настоящего процесса server.js: старт, остановка по сигналу, код выхода.
+'use strict';
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawn } = require('child_process');
+
+const SERVER = path.resolve(__dirname, '../../server.js');
+
+function run(env) {
+  const child = spawn(process.execPath, [SERVER], {
+    env: { PATH: process.env.PATH, ...env },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const out = { stdout: '', stderr: '' };
+  child.stdout.on('data', (d) => { out.stdout += d; });
+  child.stderr.on('data', (d) => { out.stderr += d; });
+  const exited = new Promise((resolve) => child.on('exit', (code) => resolve(code)));
+  return { child, out, exited };
+}
+
+async function waitFor(out, re, ms = 10000) {
+  const until = Date.now() + ms;
+  while (!re.test(out.stdout)) {
+    if (Date.now() > until) throw new Error(`не дождались ${re}: ${out.stdout}${out.stderr}`);
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+describe('server.js', () => {
+  let dir;
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scada-server-'));
+  });
+
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  test.each(['SIGTERM', 'SIGINT'])('запускается и останавливается по %s с кодом 0', async (signal) => {
+    const { child, out, exited } = run({
+      CONF_ENV_FILE: path.join(dir, 'conf.env'),
+      LOG_LEVEL: 'info',
+      DATA_DIR: dir,
+    });
+    await waitFor(out, /сервер запущен/);
+    expect(out.stdout).toMatch(/версия \S+/);
+    expect(out.stdout).toMatch(/conf.env не найден/);
+    child.kill(signal);
+    expect(await exited).toBe(0);
+    expect(out.stdout).toMatch(new RegExp(`остановка сервера \\(${signal}\\)`));
+    expect(out.stdout).toMatch(/сервер остановлен/);
+    expect(out.stderr).toBe('');
+  });
+
+  test('ошибка настроек — выход с кодом 1 и понятным сообщением', async () => {
+    const { out, exited } = run({
+      CONF_ENV_FILE: path.join(dir, 'conf.env'),
+      SHUTDOWN_TIMEOUT_MS: 'abc',
+    });
+    expect(await exited).toBe(1);
+    expect(out.stderr).toMatch(/SHUTDOWN_TIMEOUT_MS: ожидается целое число/);
+  });
+
+  test('сообщает, какие переменные окружения перекрывают conf.env', async () => {
+    const file = path.join(dir, 'conf.env');
+    fs.writeFileSync(file, 'LOG_LEVEL=error\nSHUTDOWN_TIMEOUT_MS=3000\n');
+    const { child, out, exited } = run({ CONF_ENV_FILE: file, LOG_LEVEL: 'info' });
+    await waitFor(out, /сервер запущен/);
+    expect(out.stdout).toMatch(/окружение перекрывает conf.env: LOG_LEVEL$/m);
+    child.kill('SIGTERM');
+    expect(await exited).toBe(0);
+  });
+});
