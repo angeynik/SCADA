@@ -49,4 +49,16 @@ describe('logger', () => {
     const raw = '{"username":"op","password":"p\\"x","token":"abc","value":1}';
     expect(logger.redactSecrets(raw)).toBe('{"username":"op","password":"***","token":"***","value":1}');
   });
+
+  // Последним: после него запись в stdout и stderr в этом процессе Jest отключена
+  test('ошибка канала вывода отключает запись в него, без исключений', () => {
+    logger.initLogging('info');
+    err.mockImplementationOnce(() => { throw new Error('EPIPE'); });
+    expect(() => logger.logErrorMessage('первая')).not.toThrow();
+    logger.logErrorMessage('вторая');
+    expect(err).toHaveBeenCalledTimes(1);
+    process.stdout.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }));
+    logger.logInfoMessage('после обрыва');
+    expect(out).not.toHaveBeenCalled();
+  });
 });

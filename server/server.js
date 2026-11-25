@@ -12,6 +12,7 @@ const { createLifecycle } = require('./services/lifecycle');
 const { installProcessHandlers } = require('./services/processHandlers');
 const { loadModel, reportModel } = require('./core/modelLoader');
 const { createTagStore } = require('./core/tagStore');
+const { createModbusTcpDriver } = require('./drivers/modbusTcp');
 
 async function main() {
   let loaded;
@@ -41,11 +42,31 @@ async function main() {
     return;
   }
   reportModel(model, logger);
-  // Текущие значения тегов. Драйверы, OPC UA и WebSocket подключаются к нему на этапах 2–8
+  // Текущие значения тегов. OPC UA и WebSocket подключаются к нему на этапах 4–8
   const tagStore = createTagStore({ tags: model.tags, logger });
 
   const lifecycle = createLifecycle({ logger, timeoutMs: config.shutdownTimeoutMs });
   installProcessHandlers({ lifecycle, logger });
+
+  const tagsOf = (driver) => [...model.tags.values()].filter((t) => t.source.driver === driver);
+  const modbusTags = tagsOf('modbus');
+  if (!config.modbusEnabled) {
+    logger.logInfoMessage(`[Server] - main - Modbus TCP выключен (MODBUS_ENABLED=false), тегов без опроса: ${modbusTags.length}`);
+  } else if (modbusTags.length) {
+    lifecycle.add('modbus', createModbusTcpDriver({
+      tags: modbusTags,
+      tagStore,
+      logger,
+      options: {
+        pollMs: config.modbusPollMs,
+        timeoutMs: config.modbusTimeoutMs,
+        connectTimeoutMs: config.modbusConnectTimeoutMs,
+        failLimit: config.modbusFailLimit,
+        maxGap: config.modbusMaxGap,
+        reconnectMaxMs: config.reconnectMaxMs,
+      },
+    }));
+  }
 
   try {
     await lifecycle.start();

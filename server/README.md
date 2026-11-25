@@ -18,6 +18,15 @@ npm start                      # остановка — Ctrl+C или SIGTERM
 npm run dev                    # перезапуск при изменении файлов
 ```
 
+## Работа без контроллеров
+
+```bash
+node tools/modbusEmulator.js --map owen-ahu-v1 --count 80 --write-instances data/config/instances/emu.json
+node tools/modbusDiag.js --instance EMU-01     # проверка одной установки
+```
+
+Подробно — [docs/modbus-tcp.md](docs/modbus-tcp.md).
+
 ## Тесты
 
 ```bash

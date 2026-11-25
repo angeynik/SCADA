@@ -4,7 +4,8 @@
 //                         остановка с ошибкой или по таймауту); повторный сигнал во время
 //                         остановки — немедленный выход с кодом 1;
 //   unhandledRejection  — запись в лог, процесс продолжает работу;
-//   uncaughtException   — запись в лог, остановка и выход с кодом 1 (перезапуск — systemd).
+//   uncaughtException   — запись в лог, остановка и выход с кодом 1 (перезапуск — systemd);
+//                         повторная во время остановки — немедленный выход с кодом 1.
 // proc и exit передаются параметрами, чтобы проверять поведение без настоящего процесса.
 'use strict';
 
@@ -37,7 +38,15 @@ function installProcessHandlers({ proc = process, lifecycle, logger, exit = (cod
     logger.logErrorMessage('[Process] - unhandledRejection -', reason instanceof Error ? reason.stack : reason);
   };
 
+  // Повторная фатальная ошибка во время остановки — немедленный выход: иначе ошибка,
+  // возникающая на каждом шаге остановки, держала бы процесс живым бесконечно
+  let fatal = false;
   const onException = (err) => {
+    if (fatal) {
+      exit(1);
+      return;
+    }
+    fatal = true;
     logger.logErrorMessage('[Process] - uncaughtException -', err && err.stack ? err.stack : err);
     shutdown('uncaughtException', 1);
   };

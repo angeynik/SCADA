@@ -77,6 +77,10 @@ const isBacnetInput = (t) => t.endsWith('Input');
 // Совместимость параметра шаблона с точкой. Возвращает текст ошибки или null.
 function checkBinding(param, driver, point) {
   const { dataType, access } = param;
+  const integer = /Int/.test(dataType);
+  if (integer && (!Number.isInteger(point.scale ?? 1) || !Number.isInteger(point.offset ?? 0))) {
+    return `${dataType} с дробным scale или offset даёт дробные значения — используйте Float`;
+  }
   if (driver === 'modbus') {
     if (dataType === 'String') return 'тип String не поддерживается Modbus';
     if (dataType === 'Boolean' && point.type !== 'bool') return 'Boolean привязывается к coil, discrete или биту регистра';

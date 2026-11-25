@@ -27,6 +27,13 @@ describe('config.loadConfig', () => {
       dataDir: path.join(ROOT, 'data'),
       configDir: path.join(ROOT, 'data/config'),
       shutdownTimeoutMs: 10000,
+      reconnectMaxMs: 30000,
+      modbusEnabled: true,
+      modbusPollMs: 1000,
+      modbusTimeoutMs: 1000,
+      modbusConnectTimeoutMs: 3000,
+      modbusFailLimit: 3,
+      modbusMaxGap: 4,
     });
     expect(Object.isFrozen(config)).toBe(true);
   });
@@ -66,6 +73,12 @@ describe('config.loadConfig', () => {
     expect(() => loadConfig({
       env: { CONF_ENV_FILE: file, LOG_LEVEL: 'verbose', SHUTDOWN_TIMEOUT_MS: '10s' },
     })).toThrow(/LOG_LEVEL.*verbose.*SHUTDOWN_TIMEOUT_MS.*10s/);
+  });
+
+  test('логический параметр: true | false', () => {
+    expect(loadConfig({ env: { CONF_ENV_FILE: file, MODBUS_ENABLED: 'FALSE' } }).config.modbusEnabled).toBe(false);
+    expect(() => loadConfig({ env: { CONF_ENV_FILE: file, MODBUS_ENABLED: 'yes' } }))
+      .toThrow(/MODBUS_ENABLED: допустимо true \| false, получено "yes"/);
   });
 
   test('число вне диапазона — ошибка', () => {

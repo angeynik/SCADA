@@ -53,6 +53,14 @@ describe('processHandlers', () => {
     expect(exit).toHaveBeenCalledWith(1);
   });
 
+  test('повторная uncaughtException во время остановки — немедленный выход', () => {
+    lifecycle.stop.mockReturnValueOnce(new Promise(() => {}));
+    proc.emit('uncaughtException', new Error('первая'));
+    proc.emit('uncaughtException', new Error('вторая'));
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(lifecycle.stop).toHaveBeenCalledTimes(1);
+  });
+
   test('unhandledRejection — только лог, процесс продолжает работу', async () => {
     proc.emit('unhandledRejection', new Error('отказ'));
     await flush();

@@ -39,16 +39,37 @@ function format(args) {
     .join(' ');
 }
 
+// Канал вывода может закрыться (например, `node server.js | tee …`, и читающая программа
+// завершилась). Ошибка записи (EPIPE) без обработчика стала бы uncaughtException, а его
+// запись в тот же канал — новой ошибкой: процесс зациклился бы. Поэтому ошибка канала
+// только отключает запись в него.
+const broken = new Set();
+
+function guard(stream) {
+  stream.on('error', () => broken.add(stream));
+}
+guard(process.stdout);
+guard(process.stderr);
+
+function write(stream, text) {
+  if (broken.has(stream)) return;
+  try {
+    stream.write(text);
+  } catch {
+    broken.add(stream);
+  }
+}
+
 function logInfoMessage(...args) {
-  if (flags.info) process.stdout.write(`${format(args)}\n`);
+  if (flags.info) write(process.stdout, `${format(args)}\n`);
 }
 
 function logDevMessage(...args) {
-  if (flags.dev) process.stdout.write(`[DEV] ${format(args)}\n`);
+  if (flags.dev) write(process.stdout, `[DEV] ${format(args)}\n`);
 }
 
 function logErrorMessage(...args) {
-  if (flags.error) process.stderr.write(`[ERROR] ${format(args)}\n`);
+  if (flags.error) write(process.stderr, `[ERROR] ${format(args)}\n`);
 }
 
 // Маскирует значения секретных полей в сыром JSON (входящие сообщения клиентов)

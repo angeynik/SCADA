@@ -249,6 +249,13 @@ describe('modelLoader.loadModel', () => {
     expect(text).toMatch(/Sp: запись невозможна: область input только для чтения/);
   });
 
+  test('целочисленный параметр с дробным масштабом — ошибка привязки', () => {
+    const tpl = fx.smallTemplate({ Hours: { title: 'Наработка', dataType: 'UInt32' } });
+    const map = fx.smallModbusMap({ Hours: { area: 'holding', address: 20, type: 'uint32', scale: 0.1 } });
+    const text = messages(loadModel({ dir: make([], { template: tpl, map }) }));
+    expect(text).toMatch(/Hours: UInt32 с дробным scale или offset даёт дробные значения — используйте Float/);
+  });
+
   test('reportModel: сводка в info, каждая ошибка в error', () => {
     const logger = createFakeLogger();
     const model = loadModel({ dir: make([fx.modbusInstance('A1'), fx.modbusInstance('A1')]) });

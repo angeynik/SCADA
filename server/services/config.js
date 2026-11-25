@@ -35,6 +35,15 @@ function parseEnum(name, raw, values) {
   return v;
 }
 
+function parseBool(name, raw) {
+  const v = String(raw).trim().toLowerCase();
+  if (v === 'true') return true;
+  if (v === 'false') return false;
+  throw new Error(`${name}: допустимо true | false, получено "${raw}"`);
+}
+
+const int = (min, max) => (n, v) => parseInt10(n, v, { min, max });
+
 // Относительный путь считается от каталога сервера
 function parsePath(name, raw) {
   const v = String(raw).trim();
@@ -56,6 +65,15 @@ const SCHEMA = [
     def: '10000',
     parse: (n, v) => parseInt10(n, v, { min: 1000, max: 120000 }),
   },
+  // Пауза переподключения драйверов растёт от 1 с до этого значения
+  { key: 'reconnectMaxMs', env: 'RECONNECT_MAX_MS', def: '30000', parse: int(1000, 600000) },
+  // Modbus TCP (docs/modbus-tcp.md)
+  { key: 'modbusEnabled', env: 'MODBUS_ENABLED', def: 'true', parse: parseBool },
+  { key: 'modbusPollMs', env: 'MODBUS_POLL_MS', def: '1000', parse: int(100, 60000) },
+  { key: 'modbusTimeoutMs', env: 'MODBUS_TIMEOUT_MS', def: '1000', parse: int(100, 30000) },
+  { key: 'modbusConnectTimeoutMs', env: 'MODBUS_CONNECT_TIMEOUT_MS', def: '3000', parse: int(100, 60000) },
+  { key: 'modbusFailLimit', env: 'MODBUS_FAIL_LIMIT', def: '3', parse: int(1, 20) },
+  { key: 'modbusMaxGap', env: 'MODBUS_MAX_GAP', def: '4', parse: int(0, 100) },
 ];
 
 function readEnvFile(file) {
