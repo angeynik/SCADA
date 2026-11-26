@@ -44,6 +44,38 @@ CREATE DATABASE scada OWNER scada;
 - уже открытые сессии продолжают работать;
 - запись журнала уходит только в лог с ошибкой «журнал не записан в БД».
 
+## Эмулятор PostgreSQL для разработки
+
+На машине разработчика рабочая БД не нужна. `tools/pgEmulator.js` поднимает отдельный экземпляр PostgreSQL из программ, установленных на машине. Как Modbus- и BACnet-эмуляторы, он изображает рабочий сервер:
+
+- роль `scada` без прав суперпользователя, базы `scada` (работа) и `scada_test` (тесты);
+- слушает только Unix-сокет в своём каталоге: TCP не открывается, общий PostgreSQL машины не затрагивается;
+- данные (пользователи, журнал) сохраняются между запусками;
+- под root программы работают от пользователя ОС `postgres`, каталог — `/var/tmp/scada-pg-emu`, у обычного пользователя — `DATA_DIR/pg-emu`.
+
+```bash
+npm run pg:start          # создать при первом запуске и запустить; печатает PG_URL для conf.env
+npm run pg:status
+npm run test:pg           # весь набор тестов вместе с тестами PostgreSQL
+node tools/pgEmulator.js exec -- npm start                          # сервер с БД эмулятора
+node tools/pgEmulator.js exec -- node tools/userAdmin.js add admin --role admin
+npm run pg:stop
+node tools/pgEmulator.js reset --yes   # удалить все данные эмулятора
+```
+
+`exec -- <команда>` при необходимости запускает эмулятор и выполняет команду с `PG_URL` и `TEST_PG_URL` эмулятора в окружении. Сигнал остановки (Ctrl+C, SIGTERM) передаётся команде, и сервер останавливается корректно. Вместо `exec` можно один раз записать `PG_URL` из `pg:start` в `conf.env`.
+
+Чем эмулятор отличается от объекта:
+
+| | Эмулятор | Объект |
+|---|---|---|
+| Вход в БД | по сокету без пароля (`trust`) | пароль через `PGPASSWORD` или `~/.pgpass`, либо `peer` |
+| Сеть | только сокет | TCP или сокет, по решению администратора |
+| TimescaleDB | только если расширение установлено на машине (`pg:status` показывает) | ставится вместе с PostgreSQL (нужно для архива, этап 6) |
+| Резервные копии | нет | `docs/deploy.md` (этап 10) |
+
+Сервер и миграции работают одинаково: перенос на рабочий PostgreSQL — это только другой `PG_URL` и пароль в окружении службы.
+
 ## Первый администратор и управление пользователями
 
 ```bash
@@ -123,4 +155,5 @@ SELECT ts, username, source, tag_id, old_value, new_value, ok, code FROM journal
 
 ```bash
 TEST_PG_URL=postgresql://scada@127.0.0.1/scada_test npm test
+npm run test:pg     # то же с эмулятором PostgreSQL
 ```

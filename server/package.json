@@ -13,7 +13,11 @@
     "dev": "node --watch server.js",
     "test": "node --experimental-vm-modules --disable-warning=ExperimentalWarning node_modules/jest/bin/jest.js",
     "test:unit": "npm test -- tests/unit/",
-    "test:integration": "npm test -- tests/integration/"
+    "test:integration": "npm test -- tests/integration/",
+    "test:pg": "node tools/pgEmulator.js exec -- npm test",
+    "pg:start": "node tools/pgEmulator.js start",
+    "pg:stop": "node tools/pgEmulator.js stop",
+    "pg:status": "node tools/pgEmulator.js status"
   },
   "license": "UNLICENSED",
   "dependencies": {

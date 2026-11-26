@@ -40,7 +40,7 @@ node tools/opcuaPki.js trust <отпечаток>
 
 ## Пользователи
 
-Нужен PostgreSQL: `PG_URL` в `conf.env` (без пароля; пароль — `PGPASSWORD` или `~/.pgpass`). Таблицы сервер создаёт сам.
+Нужен PostgreSQL: `PG_URL` в `conf.env` (без пароля; пароль — `PGPASSWORD` или `~/.pgpass`). Таблицы сервер создаёт сам. Для разработки — эмулятор: `npm run pg:start` печатает `PG_URL`, `npm run test:pg` — тесты вместе с БД.
 
 ```bash
 node tools/userAdmin.js add admin --role admin     # первый администратор
@@ -53,7 +53,7 @@ node tools/userAdmin.js list
 
 ```bash
 npm test                  # весь набор (не npx jest: нужен флаг для node-opcua)
-TEST_PG_URL=postgresql://scada@127.0.0.1/scada_test npm test   # вместе с тестами PostgreSQL
+npm run test:pg           # вместе с тестами PostgreSQL (эмулятор, docs/users.md)
 npm run test:unit         # только юнит-тесты
 npm run test:integration  # только интеграционные
 ```
