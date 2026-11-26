@@ -115,6 +115,19 @@ function checkParam(name, p) {
   return errors;
 }
 
+// Метод шаблона: параметр есть, доступен для записи, значение его типа; имя не совпадает
+// с параметром (у них общее пространство NodeId установки)
+function checkMethod(name, m, params) {
+  const p = params[m.param];
+  if (params[name]) return `метод ${name}: совпадает с именем параметра`;
+  if (!p) return `метод ${name}: нет параметра ${m.param}`;
+  if (p.access !== 'rw') return `метод ${name}: параметр ${m.param} только для чтения`;
+  if ((p.dataType === 'Boolean') !== (typeof m.value === 'boolean') || p.dataType === 'String') {
+    return `метод ${name}: значение ${JSON.stringify(m.value)} не подходит к типу ${p.dataType}`;
+  }
+  return null;
+}
+
 function mergeParam(base, override) {
   if (!override) return base;
   const merged = { ...base, ...override };
@@ -129,7 +142,10 @@ function loadTemplates(dir, issues) {
     const { value, error } = check(schemas.template, data);
     if (error) { issues.push({ file, message: error }); continue; }
     if (templates.has(value.id)) { issues.push({ file, message: `шаблон ${value.id} уже определён` }); continue; }
-    const errors = Object.entries(value.params).flatMap(([n, p]) => checkParam(n, p));
+    const errors = [
+      ...Object.entries(value.params).flatMap(([n, p]) => checkParam(n, p)),
+      ...Object.entries(value.methods).map(([n, m]) => checkMethod(n, m, value.params)).filter(Boolean),
+    ];
     if (errors.length) { issues.push({ file, message: errors.join('; ') }); continue; }
     templates.set(value.id, { ...value, file });
   }
@@ -300,7 +316,12 @@ function loadModel({ dir }) {
     const res = buildInstance(site, inst, templates, maps);
     if (res.error) { fail(file, inst.id, res.error); continue; }
     for (const tag of res.tags) tags.set(tag.id, tag);
-    instances.push({ ...inst, file, tagIds: res.tags.map((t) => t.id) });
+    // Методы — только для параметров, которые есть у установки (не исключены)
+    const tpl = templates.get(inst.template);
+    const methods = Object.entries(tpl.methods)
+      .map(([name, m]) => ({ name, title: m.title, tagId: `${site.id}/${inst.id}/${m.param}`, value: m.value }))
+      .filter((m) => tags.has(m.tagId));
+    instances.push({ ...inst, file, tagIds: res.tags.map((t) => t.id), methods });
   }
 
   return { dir, site, templates, maps, instances, disabled, tags, issues };

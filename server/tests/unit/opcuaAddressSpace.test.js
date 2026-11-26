@@ -94,7 +94,8 @@ describe('opcua/addressSpace и values', () => {
     const type = addressSpace.findNode(`ns=${ns.index};s=type:AhuType`);
     expect(type.nodeClass).toBe(opcua.NodeClass.ObjectType);
     const comps = type.getComponents();
-    expect(comps).toHaveLength(20);
+    expect(comps.filter((c) => c.nodeClass === opcua.NodeClass.Variable)).toHaveLength(20);
+    expect(comps.filter((c) => c.nodeClass === opcua.NodeClass.Method).map((c) => c.browseName.name)).toEqual(['Start', 'Stop']);
     expect(comps.every((c) => c.modellingRule === 'Optional')).toBe(true);
     expect(addressSpace.findNode(`ns=${ns.index};s=type:AhuType/SupplyTempSp`).getPropertyByName('EURange').modellingRule).toBe('Mandatory');
   });
@@ -130,6 +131,47 @@ describe('opcua/addressSpace и values', () => {
     // После отписки значения не меняются
     store.update(id, 30);
     expect(read(id).value.value).toBe(21.5);
+  });
+
+  test('без onWrite нет методов у установок', () => {
+    expect(built).toMatchObject({ writable: 0, methods: 0 });
+    expect(node('B1/AHU-01/Start')).toBeNull();
+  });
+
+  test('с onWrite: переменные rw пишутся через обработчик, методы вызывают onCall', async () => {
+    const ns2 = addressSpace.registerNamespace('urn:test:model-rw');
+    const writes = [];
+    const calls = [];
+    const b = buildAddressSpace({
+      addressSpace,
+      ns: ns2,
+      model,
+      onWrite: async (tag, dv) => { writes.push([tag.id, dv.value.value]); return StatusCodes.Good; },
+      onCall: async (m) => { calls.push([m.name, m.tagId, m.value]); return StatusCodes.BadUserAccessDenied; },
+    });
+    const rw = model.instances.flatMap((i) => i.tagIds).filter((id) => model.tags.get(id).access === 'rw');
+    expect(b.writable).toBe(rw.length);
+    expect(b.methods).toBe(6);
+    const n2 = (id) => addressSpace.findNode(`ns=${ns2.index};s=${id}`);
+    const rwFlags = opcua.AccessLevelFlag.CurrentRead | opcua.AccessLevelFlag.CurrentWrite;
+    expect(n2('B1/AHU-01/SupplyTempSp').accessLevel).toBe(rwFlags);
+    expect(n2('B1/AHU-01/SupplyTemp').accessLevel).toBe(opcua.AccessLevelFlag.CurrentRead);
+
+    const status = await new Promise((resolve, reject) => {
+      n2('B1/AHU-01/SupplyTempSp').writeValue(SessionContext.defaultContext,
+        new opcua.DataValue({ value: { dataType: DataType.Float, value: 22 } }), (err, sc) => (err ? reject(err) : resolve(sc)));
+    });
+    expect(status).toBe(StatusCodes.Good);
+    expect(writes).toEqual([['B1/AHU-01/SupplyTempSp', 22]]);
+    // Значение узла не меняется само: его кладёт values.js из tagStore после подтверждения
+    expect(n2('B1/AHU-01/SupplyTempSp').readValue().statusCode).toBe(StatusCodes.BadNotConnected);
+
+    const start = n2('B1/AHU-17/Start');
+    expect(start.nodeClass).toBe(opcua.NodeClass.Method);
+    expect(start.description.text).toBe('Пуск');
+    const res = await start.execute(null, [], SessionContext.defaultContext);
+    expect(res.statusCode).toBe(StatusCodes.BadUserAccessDenied);
+    expect(calls).toEqual([['Start', 'B1/AHU-17/Command', true]]);
   });
 
   test('при подключении переносятся текущие значения', () => {

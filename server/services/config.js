@@ -80,6 +80,26 @@ function parseUri(name, raw) {
   return v;
 }
 
+// Адрес PostgreSQL: postgresql://пользователь@узел:порт/база. Пароль в адресе запрещён:
+// conf.env читают многие, пароль — только в PGPASSWORD (окружение службы) или ~/.pgpass.
+// Пустое значение — сервер без БД (нет пользователей, журнал только в логе)
+function parsePgUrl(name, raw) {
+  const v = String(raw).trim();
+  if (!v) return '';
+  let u;
+  try {
+    u = new URL(v);
+  } catch {
+    throw new Error(`${name}: ожидается postgresql://пользователь@узел:порт/база`);
+  }
+  if (u.protocol !== 'postgresql:' && u.protocol !== 'postgres:') throw new Error(`${name}: ожидается postgresql://пользователь@узел:порт/база`);
+  if (u.password || u.searchParams.has('password')) {
+    throw new Error(`${name}: пароль в адресе не указывается — задайте PGPASSWORD в окружении службы или ~/.pgpass`);
+  }
+  if (u.pathname.length < 2) throw new Error(`${name}: не указана база (…/scada)`);
+  return v;
+}
+
 // Относительный путь считается от каталога сервера
 function parsePath(name, raw) {
   const v = String(raw).trim();
@@ -135,6 +155,13 @@ const SCHEMA = [
   { key: 'opcuaMaxSessions', env: 'OPCUA_MAX_SESSIONS', def: '20', parse: int(1, 500) },
   // Сертификаты OPC UA: свой, доверенные и отклонённые клиенты
   { key: 'pkiDir', env: 'PKI_DIR', def: 'pki', parse: parsePath },
+  // PostgreSQL: пользователи, журнал (позже архив и тревоги). Пусто — без БД
+  { key: 'pgUrl', env: 'PG_URL', def: '', parse: parsePgUrl },
+  { key: 'pgPoolMax', env: 'PG_POOL_MAX', def: '10', parse: int(2, 100) },
+  // Пользователи и вход
+  { key: 'bcryptRounds', env: 'BCRYPT_ROUNDS', def: '12', parse: int(10, 15) },
+  { key: 'authMaxFailures', env: 'AUTH_MAX_FAILURES', def: '5', parse: int(1, 100) },
+  { key: 'authLockMs', env: 'AUTH_LOCK_MS', def: '60000', parse: int(1000, 3600000) },
 ];
 
 function readEnvFile(file) {

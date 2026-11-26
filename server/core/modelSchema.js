@@ -119,11 +119,20 @@ const paramOverride = Joi.object({
   alarms: Joi.array().items(alarm),
 });
 
+// Метод установки (OPC UA Method, кнопка интерфейса): запись заданного значения в параметр rw.
+// Права — writeLevel этого параметра
+const method = Joi.object({
+  title: text(200).required(),
+  param: Joi.string().pattern(PARAM_RE).required(),
+  value: Joi.alternatives(Joi.boolean(), Joi.number()).required(),
+});
+
 const template = Joi.object({
   id: Joi.string().pattern(ID_RE).required(),
   title: text(200).required(),
   description: text(1000),
   params: Joi.object().pattern(PARAM_RE, param).min(1).required(),
+  methods: Joi.object().pattern(PARAM_RE, method).default({}),
 });
 
 const scaling = {

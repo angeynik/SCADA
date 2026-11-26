@@ -10,7 +10,10 @@ const { startEmulators } = require('../../tools/modbusEmulator');
 const { startBacnetEmulators } = require('../../tools/bacnetEmulator');
 const { freeUdpPort } = require('../../tools/lib/bacnetDevice');
 const net = require('net');
-const { OPCUAClient } = require('node-opcua');
+const { OPCUAClient, UserTokenType, AttributeIds, DataType, StatusCodes } = require('node-opcua');
+const { Client: PgClient } = require('pg');
+const { Readable } = require('stream');
+const { main: userAdmin } = require('../../tools/userAdmin');
 
 async function freeTcpPort() {
   const srv = net.createServer();
@@ -220,6 +223,91 @@ describe('server.js', () => {
       await client.disconnect();
       await emu.stop();
     }
+  });
+
+  (process.env.TEST_PG_URL ? test : test.skip)('с PostgreSQL: вход по паролю, запись уставки в ОВЕН, журнал, отзыв сессии (TEST_PG_URL)', async () => {
+    const schema = `scada_srv_${process.pid}_${Date.now()}`;
+    const admin = new PgClient({ connectionString: process.env.TEST_PG_URL });
+    await admin.connect();
+    await admin.query(`CREATE SCHEMA ${schema}`);
+    const u = new URL(process.env.TEST_PG_URL);
+    u.searchParams.set('options', `-c search_path=${schema}`);
+    const pgUrl = u.toString();
+    const cfg = path.join(dir, 'config');
+    fs.cpSync(EXAMPLE, cfg, { recursive: true });
+    const model = loadModel({ dir: EXAMPLE });
+    const emu = await startEmulators({ model, mapId: 'owen-ahu-v1', count: 1, basePort: 0 });
+    const opcPort = await freeTcpPort();
+    const client = OPCUAClient.create({ endpointMustExist: false, connectionStrategy: { maxRetry: 0 } });
+    const env = { CONF_ENV_FILE: path.join(dir, 'conf.env'), PG_URL: pgUrl, BCRYPT_ROUNDS: '10' };
+    const quiet = () => {};
+    let proc = null;
+    try {
+      expect(await userAdmin(['n', 't', 'add', 'eng', '--role', 'engineer'], quiet, { env, io: { input: Readable.from(['eng-pass-1\n']) } })).toBe(0);
+      fs.writeFileSync(path.join(cfg, 'instances/floor1.json'), JSON.stringify(emu.instances));
+      const { child, out, exited } = run({
+        ...env,
+        LOG_LEVEL: 'info',
+        CONFIG_DIR: cfg,
+        BACNET_ENABLED: 'false',
+        OPCUA_PORT: String(opcPort),
+        OPCUA_INTERFACE: '127.0.0.1',
+        OPCUA_HOSTNAME: 'localhost',
+        OPCUA_ALLOW_INSECURE: 'true',
+        PKI_DIR: path.join(dir, 'pki'),
+      });
+      proc = child;
+      await waitFor(out, /сервер запущен/, 20000);
+      expect(out.stdout).toMatch(/\[Db\] - start - PostgreSQL .*миграций применено: 0/);
+      expect(out.stdout).toMatch(/переменных 20 \(запись 3\), методов 2/);
+
+      await client.connect(`opc.tcp://localhost:${opcPort}`);
+      const session = await client.createSession({ type: UserTokenType.UserName, userName: 'eng', password: 'eng-pass-1' });
+      const ns = (await session.readNamespaceArray()).indexOf('urn:scada-bms:model');
+      const id = `B1/${emu.instances[0].id}/SupplyTempSp`;
+      const status = await session.write({ nodeId: `ns=${ns};s=${id}`, attributeId: AttributeIds.Value, value: { value: { dataType: DataType.Float, value: 23.5 } } });
+      expect(status).toBe(StatusCodes.Good);
+      expect(emu.slaves[0].writes.some((w) => w.address === 102 || w.address === 103)).toBe(true);
+      expect((await session.read({ nodeId: `ns=${ns};s=${id}` })).value.value).toBe(23.5);
+      await waitFor(out, /\[Journal\] - write - eng@opcua\/\S+ B1\/EMU-01\/SupplyTempSp: \S+ → 23.5, выполнено/);
+      const { rows } = await admin.query(`SELECT username, tag_id, new_value, ok FROM ${schema}.journal WHERE action = 'write'`);
+      expect(rows).toEqual([{ username: 'eng', tag_id: id, new_value: 23.5, ok: true }]);
+
+      // Роль меняет другой процесс (userAdmin): NOTIFY → сервер закрывает сессию eng
+      expect(await userAdmin(['n', 't', 'role', 'eng', 'viewer'], quiet, { env })).toBe(0);
+      await waitFor(out, /закрыта сессия eng: учётная запись изменена/);
+      const after = await session.write({ nodeId: `ns=${ns};s=${id}`, attributeId: AttributeIds.Value, value: { value: { dataType: DataType.Float, value: 24 } } })
+        .catch(() => StatusCodes.BadSessionClosed);
+      expect(after).not.toBe(StatusCodes.Good);
+      await client.disconnect();
+
+      child.kill('SIGTERM');
+      expect(await exited).toBe(0);
+      expect(out.stdout).toMatch(/сервер остановлен/);
+    } finally {
+      // Упавший тест не должен оставить работающий server.js
+      if (proc && proc.exitCode === null) proc.kill('SIGKILL');
+      await client.disconnect();
+      await emu.stop();
+      await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      await admin.end();
+    }
+  });
+
+  test('PostgreSQL недоступен при запуске — выход с кодом 1 без пароля в сообщении', async () => {
+    const port = await freeTcpPort(); // никто не слушает
+    const { out, exited } = run({
+      CONF_ENV_FILE: path.join(dir, 'conf.env'),
+      CONFIG_DIR: EXAMPLE,
+      MODBUS_ENABLED: 'false',
+      BACNET_ENABLED: 'false',
+      OPCUA_ENABLED: 'false',
+      PG_URL: `postgresql://scada@127.0.0.1:${port}/scada`,
+      PGPASSWORD: 'top-secret-pw',
+    });
+    expect(await exited).toBe(1);
+    expect(out.stderr).toMatch(new RegExp(`ошибка запуска db: нет подключения к PostgreSQL 127\\.0\\.0\\.1:${port}/scada`));
+    expect(out.stdout + out.stderr).not.toMatch(/top-secret-pw/);
   });
 
   test('сообщает, какие переменные окружения перекрывают conf.env', async () => {

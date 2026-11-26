@@ -78,5 +78,9 @@
       "unit": "ч",
       "archive": { "mode": "interval", "periodMs": 3600000 }
     }
+  },
+  "methods": {
+    "Start": { "title": "Пуск", "param": "Command", "value": true },
+    "Stop": { "title": "Стоп", "param": "Command", "value": false }
   }
 }

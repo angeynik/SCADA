@@ -2,7 +2,8 @@
 // Точка входа: читает настройки, собирает сервисы, запускает их и корректно
 // останавливает по сигналу. Бизнес-логики не содержит.
 // Сервисы добавляются в lifecycle по этапам плана (PLAN.md) в порядке запуска:
-// хранилище → модель → драйверы → тревоги и архив → OPC UA → WebSocket.
+// БД → драйверы → шлюз команд → тревоги и архив → OPC UA → WebSocket.
+// Остановка — в обратном порядке: OPC UA, шлюз (команды больше не принимаются), драйверы, БД.
 'use strict';
 
 const logger = require('./services/logger');
@@ -14,6 +15,11 @@ const { loadModel, reportModel } = require('./core/modelLoader');
 const { createTagStore } = require('./core/tagStore');
 const { createModbusTcpDriver } = require('./drivers/modbusTcp');
 const { createBacnetIpDriver } = require('./drivers/bacnetIp');
+const { createDb } = require('./storage/db');
+const { createUserStore } = require('./services/userStore');
+const { createAuthService } = require('./services/auth');
+const { createJournal } = require('./services/journal');
+const { createCommandGateway } = require('./services/commandGateway');
 
 async function main() {
   let loaded;
@@ -49,12 +55,25 @@ async function main() {
   const lifecycle = createLifecycle({ logger, timeoutMs: config.shutdownTimeoutMs });
   installProcessHandlers({ lifecycle, logger });
 
+  // БД: пользователи и журнал. Без PG_URL — без пользователей, журнал только в логе
+  let db = null;
+  if (!config.pgUrl) {
+    logger.logInfoMessage('[Server] - main - PostgreSQL не задан (PG_URL): пользователей нет, журнал только в логе');
+  } else {
+    db = createDb({ url: config.pgUrl, poolMax: config.pgPoolMax, logger });
+    lifecycle.add('db', db);
+  }
+  const userStore = db ? createUserStore({ db, logger, bcryptRounds: config.bcryptRounds }) : null;
+  const auth = createAuthService({ userStore, logger, maxFailures: config.authMaxFailures, lockMs: config.authLockMs });
+  const journal = createJournal({ db, logger });
+  const drivers = new Map();
+
   const tagsOf = (driver) => [...model.tags.values()].filter((t) => t.source.driver === driver);
   const modbusTags = tagsOf('modbus');
   if (!config.modbusEnabled) {
     logger.logInfoMessage(`[Server] - main - Modbus TCP выключен (MODBUS_ENABLED=false), тегов без опроса: ${modbusTags.length}`);
   } else if (modbusTags.length) {
-    lifecycle.add('modbus', createModbusTcpDriver({
+    drivers.set('modbus', createModbusTcpDriver({
       tags: modbusTags,
       tagStore,
       logger,
@@ -67,13 +86,14 @@ async function main() {
         reconnectMaxMs: config.reconnectMaxMs,
       },
     }));
+    lifecycle.add('modbus', drivers.get('modbus'));
   }
 
   const bacnetTags = tagsOf('bacnet');
   if (!config.bacnetEnabled) {
     logger.logInfoMessage(`[Server] - main - BACnet выключен (BACNET_ENABLED=false), тегов без опроса: ${bacnetTags.length}`);
   } else if (bacnetTags.length) {
-    lifecycle.add('bacnet', createBacnetIpDriver({
+    drivers.set('bacnet', createBacnetIpDriver({
       tags: bacnetTags,
       tagStore,
       logger,
@@ -91,7 +111,12 @@ async function main() {
         reconnectMaxMs: config.reconnectMaxMs,
       },
     }));
+    lifecycle.add('bacnet', drivers.get('bacnet'));
   }
+
+  // Единый путь записи. После драйверов: при остановке сначала перестаёт принимать команды
+  const gateway = createCommandGateway({ tagStore, drivers, journal, logger });
+  lifecycle.add('commands', gateway);
 
   // OPC UA — после драйверов: при остановке он закрывается первым
   if (!config.opcuaEnabled) {
@@ -104,6 +129,8 @@ async function main() {
       tagStore,
       logger,
       version,
+      auth,
+      gateway,
       options: {
         port: config.opcuaPort,
         host: config.opcuaInterface,

@@ -3,8 +3,12 @@
 //   Objects/<объект> (папка) → установки (Object типа шаблона) → переменные тегов;
 //   Types/ObjectTypes/BaseObjectType/<шаблон> — тип установки, параметры — компоненты
 //   с правилом Optional (экземпляр может исключить параметр через exclude).
-// На этапе 4 все переменные только для чтения (AccessLevel CurrentRead): запись появится
-// вместе с commandGateway на этапе 5.
+// Запись: переменные тегов access rw получают CurrentWrite, их writeValue заменён вызовом
+// onWrite(tag, dataValue, context) → Promise<StatusCode> (commandGateway через opcua/index.js).
+// Значение переменной после записи не меняется здесь: его кладёт values.js из tagStore,
+// куда драйвер пишет подтверждённое контроллером значение. Без onWrite все переменные
+// только для чтения.
+// Методы шаблона (methods) — узлы Method установки; вызов — onCall(method, context).
 // Значения в переменные кладёт values.js, здесь узлы создаются с bad / BadNotConnected.
 'use strict';
 
@@ -13,6 +17,7 @@ const nodes = require('./nodes');
 
 const { DataType, Range, StatusCodes, makeEUInformation } = opcua;
 const READ_ONLY = { accessLevel: 'CurrentRead', userAccessLevel: 'CurrentRead' };
+const READ_WRITE = { accessLevel: 'CurrentRead | CurrentWrite', userAccessLevel: 'CurrentRead | CurrentWrite' };
 
 function addProperty(ns, variable, nodeId, name, dataType, value, modellingRule) {
   return ns.addVariable({
@@ -28,7 +33,7 @@ function addProperty(ns, variable, nodeId, name, dataType, value, modellingRule)
 
 // Переменная параметра. param — параметр шаблона (для типа) или тег (для экземпляра).
 // modellingRule задаётся только у компонентов типа.
-function addParamVariable(ns, parent, nodeId, name, param, modellingRule) {
+function addParamVariable(ns, parent, nodeId, name, param, modellingRule, writable = false) {
   const base = {
     componentOf: parent,
     browseName: name,
@@ -38,7 +43,7 @@ function addParamVariable(ns, parent, nodeId, name, param, modellingRule) {
     dataType: param.dataType,
     minimumSamplingInterval: 0,
     modellingRule,
-    ...READ_ONLY,
+    ...(writable ? READ_WRITE : READ_ONLY),
   };
   const kind = nodes.variableKind(param);
   if (kind === 'multiState') {
@@ -64,6 +69,26 @@ function addParamVariable(ns, parent, nodeId, name, param, modellingRule) {
   return variable;
 }
 
+// Запись переменной — только через onWrite. node-opcua вызывает writeValue(context,
+// dataValue, [indexRange,] callback); стандартная обработка (запись значения в узел) не нужна
+function bindWrite(variable, tag, onWrite) {
+  variable.writeValue = function writeValue(context, dataValue, ...args) {
+    const callback = args[args.length - 1];
+    onWrite(tag, dataValue, context).then((status) => callback(null, status), (err) => callback(err));
+  };
+}
+
+function addMethodNode(ns, parent, nodeId, name, title, modellingRule) {
+  return ns.addMethod(parent, {
+    browseName: name,
+    nodeId: `s=${nodeId}`,
+    description: title,
+    modellingRule,
+    inputArguments: [],
+    outputArguments: [],
+  });
+}
+
 function addObjectType(ns, template) {
   const type = ns.addObjectType({
     browseName: template.id,
@@ -71,14 +96,17 @@ function addObjectType(ns, template) {
     description: template.description ? `${template.title}. ${template.description}` : template.title,
   });
   for (const [name, param] of Object.entries(template.params)) {
-    addParamVariable(ns, type, nodes.typeParamNodeId(template.id, name), name, param, 'Optional');
+    addParamVariable(ns, type, nodes.typeParamNodeId(template.id, name), name, param, 'Optional', param.access === 'rw');
+  }
+  for (const [name, m] of Object.entries(template.methods || {})) {
+    addMethodNode(ns, type, nodes.typeParamNodeId(template.id, name), name, m.title, 'Optional');
   }
   return type;
 }
 
 // Строит узлы модели в пространстве имён ns.
-// Возвращает { variables: Map(tagId → UAVariable), types, instances }.
-function buildAddressSpace({ addressSpace, ns, model }) {
+// Возвращает { variables: Map(tagId → UAVariable), types, instances, writable, methods }.
+function buildAddressSpace({ addressSpace, ns, model, onWrite = null, onCall = null }) {
   const types = new Map();
   for (const template of model.templates.values()) types.set(template.id, addObjectType(ns, template));
 
@@ -90,6 +118,8 @@ function buildAddressSpace({ addressSpace, ns, model }) {
   });
 
   const variables = new Map();
+  let writableCount = 0;
+  let methodCount = 0;
   for (const inst of model.instances) {
     const object = ns.addObject({
       organizedBy: folder,
@@ -100,12 +130,22 @@ function buildAddressSpace({ addressSpace, ns, model }) {
     });
     for (const tagId of inst.tagIds) {
       const tag = model.tags.get(tagId);
-      const variable = addParamVariable(ns, object, tagId, tag.param, tag);
+      const writable = Boolean(onWrite) && tag.access === 'rw';
+      const variable = addParamVariable(ns, object, tagId, tag.param, tag, undefined, writable);
       variable.setValueFromSource({ dataType: DataType.Null }, StatusCodes.BadNotConnected);
+      if (writable) {
+        bindWrite(variable, tag, onWrite);
+        writableCount += 1;
+      }
       variables.set(tagId, variable);
     }
+    for (const m of (onCall && inst.methods) || []) {
+      const node = addMethodNode(ns, object, `${site.id}/${inst.id}/${m.name}`, m.name, m.title);
+      node.bindMethod(async (inputArguments, context) => ({ statusCode: await onCall(m, context) }));
+      methodCount += 1;
+    }
   }
-  return { variables, types: types.size, instances: model.instances.length };
+  return { variables, types: types.size, instances: model.instances.length, writable: writableCount, methods: methodCount };
 }
 
 module.exports = { buildAddressSpace };

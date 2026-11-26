@@ -12,6 +12,9 @@ const { createTagStore } = require('../../core/tagStore');
 const { createOpcUaServer } = require('../../opcua');
 const { main: pkiMain } = require('../../tools/opcuaPki');
 const { createFakeLogger } = require('../helpers/fakeLogger');
+const { createFakeUserStore } = require('../helpers/fakeUserStore');
+const { createAuthService } = require('../../services/auth');
+const { createCommandGateway } = require('../../services/commandGateway');
 const fx = require('../helpers/modelFixture');
 
 const {
@@ -178,12 +181,12 @@ describe('OPC UA-сервер', () => {
       await expect(client().connect(`opc.tcp://localhost:${port}`).then(() => null)).resolves.toBeNull();
       const plain = clients[clients.length - 1];
       await expect(plain.createSession()).rejects.toThrow();
-      expect(logger.lines.info.join('\n')).toMatch(/пользователей пока нет/);
+      expect(logger.lines.info.join('\n')).toMatch(/пользователи не подключены \(PG_URL\)/);
     });
 
     test('новый клиент не допущен, после доверия — вход по паролю', async () => {
-      const users = { operator: 'secret' };
-      await startServer({ allowInsecure: false }, { authenticate: async (u, p) => users[u] === p });
+      const userStore = createFakeUserStore({ operator: { password: 'secret', role: 'operator' } });
+      await startServer({ allowInsecure: false }, { auth: createAuthService({ userStore, logger: createFakeLogger() }) });
       const pki = path.join(dir, 'pki');
 
       const first = await secureClient();
@@ -222,6 +225,120 @@ describe('OPC UA-сервер', () => {
       out.length = 0;
       expect(pkiMain(['n', 't', 'untrust', thumb, '--pki', pki], (s) => out.push(s))).toBe(0);
       expect(out.join('')).toMatch(/Отозван/);
+    });
+  });
+
+  describe('запись и методы через commandGateway', () => {
+    let userStore;
+    let driverCalls;
+    let journalEntries;
+    let ns;
+
+    const ID = (id) => `ns=${ns};s=${id}`;
+
+    beforeEach(async () => {
+      userStore = createFakeUserStore({
+        viewer: { password: 'viewer-pass', role: 'viewer' },
+        oper: { password: 'oper-pass', role: 'operator' },
+        eng: { password: 'eng-pass', role: 'engineer' },
+      });
+      driverCalls = [];
+      journalEntries = [];
+      // Драйвер-подделка: «контроллер» подтверждает записанное значение через tagStore
+      const fakeDriver = {
+        async write(tagId, value) {
+          driverCalls.push([tagId, value]);
+          store.update(tagId, value);
+          return { ok: true, value };
+        },
+      };
+      const lazyStore = { tag: (id) => store.tag(id), get: (id) => store.get(id) };
+      const gateway = createCommandGateway({
+        tagStore: lazyStore,
+        drivers: new Map([['modbus', fakeDriver], ['bacnet', fakeDriver]]),
+        journal: { record: async (e) => { journalEntries.push(e); } },
+        logger: createFakeLogger(),
+      });
+      await startServer({ allowInsecure: true }, { auth: createAuthService({ userStore, logger: createFakeLogger() }), gateway });
+    });
+
+    async function login(userName, password) {
+      const c = client();
+      await c.connect(`opc.tcp://localhost:${port}`);
+      const session = await c.createSession(userName ? { type: UserTokenType.UserName, userName, password } : undefined);
+      ns = (await session.readNamespaceArray()).indexOf(NS_URI);
+      return session;
+    }
+
+    const write = (session, id, dataType, value) => session.write({
+      nodeId: ID(id), attributeId: AttributeIds.Value, value: { value: { dataType, value } },
+    });
+
+    test('права по уровню, диапазон, тип, журнал', async () => {
+      const oper = await login('oper', 'oper-pass');
+      expect(await write(oper, 'B1/AHU-01/Command', DataType.Boolean, true)).toBe(StatusCodes.Good);
+      expect((await oper.read({ nodeId: ID('B1/AHU-01/Command') })).value.value).toBe(true);
+      // Уставка — уровень 3, у оператора 2
+      expect(await write(oper, 'B1/AHU-01/SupplyTempSp', DataType.Float, 22)).toBe(StatusCodes.BadUserAccessDenied);
+      expect(await write(oper, 'B1/AHU-01/SupplyTemp', DataType.Float, 22)).toBe(StatusCodes.BadNotWritable);
+
+      const eng = await login('eng', 'eng-pass');
+      expect(await write(eng, 'B1/AHU-01/SupplyTempSp', DataType.Float, 22.1)).toBe(StatusCodes.Good);
+      expect(store.get('B1/AHU-01/SupplyTempSp').value).toBe(22.1); // float32 → 7 знаков
+      expect(await write(eng, 'B1/AHU-02/SupplyTempSp', DataType.Float, 25)).toBe(StatusCodes.BadOutOfRange); // у AHU-02 max 24
+      expect(await write(eng, 'B1/AHU-01/SupplyTempSp', DataType.Double, 22)).toBe(StatusCodes.BadTypeMismatch);
+      expect(await write(eng, 'B1/AHU-01/Season', DataType.UInt16, 7)).toBe(StatusCodes.BadOutOfRange);
+      expect(await write(eng, 'B1/AHU-01/Season', DataType.UInt16, 2)).toBe(StatusCodes.Good);
+
+      const anon = await login();
+      expect(await write(anon, 'B1/AHU-01/Command', DataType.Boolean, false)).toBe(StatusCodes.BadUserAccessDenied);
+
+      expect(driverCalls).toEqual([['B1/AHU-01/Command', true], ['B1/AHU-01/SupplyTempSp', 22.1], ['B1/AHU-01/Season', 2]]);
+      expect(journalEntries.map((e) => [e.username, e.tagId, e.ok, e.code])).toEqual([
+        ['oper', 'B1/AHU-01/Command', true, null],
+        ['oper', 'B1/AHU-01/SupplyTempSp', false, 'FORBIDDEN'],
+        ['eng', 'B1/AHU-01/SupplyTempSp', true, null],
+        ['eng', 'B1/AHU-02/SupplyTempSp', false, 'OUT_OF_RANGE'],
+        ['eng', 'B1/AHU-01/Season', false, 'OUT_OF_RANGE'],
+        ['eng', 'B1/AHU-01/Season', true, null],
+        [null, 'B1/AHU-01/Command', false, 'FORBIDDEN'],
+      ]);
+      expect(journalEntries[0].source).toMatch(/^opcua\//);
+    });
+
+    test('методы Пуск и Стоп', async () => {
+      const viewer = await login('viewer', 'viewer-pass');
+      const call = (session, name) => session.call({ objectId: ID('B1/AHU-17'), methodId: ID(`B1/AHU-17/${name}`), inputArguments: [] });
+      expect((await call(viewer, 'Start')).statusCode).toBe(StatusCodes.BadUserAccessDenied);
+      const oper = await login('oper', 'oper-pass');
+      expect((await call(oper, 'Start')).statusCode).toBe(StatusCodes.Good);
+      expect((await call(oper, 'Stop')).statusCode).toBe(StatusCodes.Good);
+      expect(driverCalls).toEqual([['B1/AHU-17/Command', true], ['B1/AHU-17/Command', false]]);
+      expect(journalEntries.map((e) => e.source.split(':').pop())).toEqual(['Start', 'Start', 'Stop']);
+    });
+
+    test('смена роли закрывает сессии пользователя, другие остаются', async () => {
+      const oper = await login('oper', 'oper-pass');
+      await login('eng', 'eng-pass');
+      expect(server.status().users.sort()).toEqual(['eng', 'oper']);
+      userStore.change('oper', { role: 'viewer' });
+      await waitFor(() => !server.status().users.includes('oper'));
+      expect(server.status().users).toEqual(['eng']);
+      expect(logger.lines.info.join('\n')).toMatch(/закрыта сессия oper: учётная запись изменена/);
+      // Клиент может сам войти заново с тем же паролем — но уже с новой ролью: запись запрещена
+      const status = await write(oper, 'B1/AHU-01/Command', DataType.Boolean, true).catch(() => StatusCodes.BadSessionClosed);
+      expect([StatusCodes.BadUserAccessDenied, StatusCodes.BadSessionClosed, StatusCodes.BadSessionIdInvalid]).toContain(status);
+      expect(driverCalls).toEqual([]);
+    });
+
+    test('после переподключения к БД проверяются все сессии', async () => {
+      await login('oper', 'oper-pass');
+      await login('eng', 'eng-pass');
+      // Пароль eng изменён, пока уведомления не доходили
+      userStore.change('eng', { password: 'new-pass-123' }, { notify: false });
+      userStore.emit(null);
+      await waitFor(() => !server.status().users.includes('eng'));
+      expect(server.status().users).toEqual(['oper']);
     });
   });
 

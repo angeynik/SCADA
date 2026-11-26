@@ -89,7 +89,28 @@ function securitySettings({ allowInsecure }) {
     : { modes: ['Sign', 'SignAndEncrypt'], policies: [...SECURE_POLICIES], userTokens: ['UserName'], allowAnonymous: false };
 }
 
+// Код ответа commandGateway → имя StatusCode для ответа на Write и Call
+const WRITE_STATUS = {
+  NOT_FOUND: 'BadNodeIdUnknown',
+  READ_ONLY: 'BadNotWritable',
+  FORBIDDEN: 'BadUserAccessDenied',
+  TYPE_MISMATCH: 'BadTypeMismatch',
+  OUT_OF_RANGE: 'BadOutOfRange',
+  NOT_PRIMARY: 'BadInvalidState',
+  NOT_CONNECTED: 'BadNotConnected',
+  NOT_SUPPORTED: 'BadNotSupported',
+  WRITE_FAILED: 'BadDeviceFailure',
+};
+const writeStatusName = (result) => (result.ok ? 'Good' : WRITE_STATUS[result.code] || 'BadInternalError');
+
+// Значение Float из OPC UA приходит как число float32 (22.1 → 22.100000381…):
+// в шлюз — с 7 значащими цифрами, как значения BACnet REAL
+const normalizeWriteValue = (dataType, v) => (dataType === 'Float' && typeof v === 'number' ? Number(v.toPrecision(7)) : v);
+
 module.exports = {
+  writeStatusName,
+  normalizeWriteValue,
+  WRITE_STATUS,
   typeNodeId,
   typeParamNodeId,
   propertyNodeId,

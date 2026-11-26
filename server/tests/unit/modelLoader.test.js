@@ -116,6 +116,28 @@ describe('modelLoader.loadModel', () => {
     expect(messages(model)).toMatch(/шаблон Small не найден или содержит ошибки/);
   });
 
+  test('методы шаблона: у установки — только для её параметров', () => {
+    const tpl = { ...fx.smallTemplate(), methods: { Start: { title: 'Пуск', param: 'Cmd', value: true } } };
+    const model = loadModel({ dir: make([fx.modbusInstance('A1'), fx.modbusInstance('A2', { exclude: ['Cmd'] })], { template: tpl }) });
+    expect(model.issues).toEqual([]);
+    expect(model.instances[0].methods).toEqual([{ name: 'Start', title: 'Пуск', tagId: 'T1/A1/Cmd', value: true }]);
+    expect(model.instances[1].methods).toEqual([]);
+    const example = loadModel({ dir: fx.EXAMPLE_DIR });
+    expect(example.instances[2].methods.map((m) => m.name)).toEqual(['Start', 'Stop']);
+  });
+
+  test.each([
+    [{ X: { title: 'x', param: 'Nope', value: true } }, /метод X: нет параметра Nope/],
+    [{ X: { title: 'x', param: 'Run', value: true } }, /метод X: параметр Run только для чтения/],
+    [{ X: { title: 'x', param: 'Cmd', value: 1 } }, /метод X: значение 1 не подходит к типу Boolean/],
+    [{ X: { title: 'x', param: 'Sp', value: true } }, /метод X: значение true не подходит к типу Float/],
+    [{ Temp: { title: 'x', param: 'Cmd', value: true } }, /метод Temp: совпадает с именем параметра/],
+  ])('ошибка метода %o', (methods, re) => {
+    const model = loadModel({ dir: make([fx.modbusInstance('A1')], { template: { ...fx.smallTemplate(), methods } }) });
+    expect(model.templates.size).toBe(0);
+    expect(messages(model)).toMatch(re);
+  });
+
   test('проверки параметра: min > max, тревога по пределу у Boolean, states у Boolean', () => {
     const tpl = fx.smallTemplate({
       A: { title: 'a', dataType: 'Float', min: 5, max: 1 },

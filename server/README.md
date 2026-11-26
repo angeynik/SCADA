@@ -36,12 +36,24 @@ node tools/opcuaPki.js list            # отклонённые клиенты �
 node tools/opcuaPki.js trust <отпечаток>
 ```
 
-До этапа 5 (пользователи) войти можно только в режиме разработки `OPCUA_ALLOW_INSECURE=true`. Подробно — [docs/opcua.md](docs/opcua.md).
+Вход — по имени и паролю пользователей сервера. Подробно — [docs/opcua.md](docs/opcua.md).
+
+## Пользователи
+
+Нужен PostgreSQL: `PG_URL` в `conf.env` (без пароля; пароль — `PGPASSWORD` или `~/.pgpass`). Таблицы сервер создаёт сам.
+
+```bash
+node tools/userAdmin.js add admin --role admin     # первый администратор
+node tools/userAdmin.js list
+```
+
+Роли, журнал и путь записи — [docs/users.md](docs/users.md).
 
 ## Тесты
 
 ```bash
 npm test                  # весь набор (не npx jest: нужен флаг для node-opcua)
+TEST_PG_URL=postgresql://scada@127.0.0.1/scada_test npm test   # вместе с тестами PostgreSQL
 npm run test:unit         # только юнит-тесты
 npm run test:integration  # только интеграционные
 ```

@@ -53,6 +53,11 @@ describe('config.loadConfig', () => {
       opcuaAllowInsecure: false,
       opcuaMaxSessions: 20,
       pkiDir: path.join(ROOT, 'pki'),
+      pgUrl: '',
+      pgPoolMax: 10,
+      bcryptRounds: 12,
+      authMaxFailures: 5,
+      authLockMs: 60000,
     });
     expect(Object.isFrozen(config)).toBe(true);
   });
@@ -128,6 +133,18 @@ describe('config.loadConfig', () => {
     expect(load({ OPCUA_NAMESPACE_URI: 'http://example.com/bms/' }).opcuaNamespaceUri).toBe('http://example.com/bms/');
     expect(() => load({ OPCUA_NAMESPACE_URI: 'scada model' })).toThrow(/OPCUA_NAMESPACE_URI: ожидается URI/);
     expect(load({ PKI_DIR: '/etc/scada/pki' }).pkiDir).toBe('/etc/scada/pki');
+  });
+
+  test('PG_URL: адрес без пароля', () => {
+    const load = (env) => loadConfig({ env: { CONF_ENV_FILE: file, ...env } }).config;
+    expect(load({ PG_URL: 'postgresql://scada@127.0.0.1:5432/scada' }).pgUrl).toBe('postgresql://scada@127.0.0.1:5432/scada');
+    expect(load({ PG_URL: 'postgresql:///scada?host=/var/run/postgresql' }).pgUrl).toBe('postgresql:///scada?host=/var/run/postgresql');
+    expect(() => load({ PG_URL: 'postgresql://scada:secret@localhost/scada' })).toThrow(/пароль в адресе не указывается/);
+    expect(() => load({ PG_URL: 'postgresql://scada@localhost/scada?password=x' })).toThrow(/пароль в адресе/);
+    expect(() => load({ PG_URL: 'mysql://scada@localhost/scada' })).toThrow(/PG_URL: ожидается postgresql/);
+    expect(() => load({ PG_URL: 'postgresql://scada@localhost' })).toThrow(/не указана база/);
+    // Текст ошибки не содержит пароль
+    expect(() => load({ PG_URL: 'postgresql://scada:secret@localhost/scada' })).not.toThrow(/secret/);
   });
 
   test('без CONF_ENV_FILE читается conf.env рядом с server.js', () => {
